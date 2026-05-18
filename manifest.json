@@ -1,11 +1,11 @@
 {
-  "id": "brunet",
-  "name": "Brunet",
-  "version": "0.1.0",
-  "minAppVersion": "0.1.0",
-  "description": "Brunet — Bruno API format support for Obsidian",
-  "author": "masykurisyaifullah",
-  "authorUrl": "https://github.com/msyaifullah",
-  "fundingUrl": "",
-  "isDesktopOnly": false
+	"id": "brunet",
+	"name": "Brunet",
+	"version": "0.2.0",
+	"minAppVersion": "0.1.0",
+	"description": "Brunet — Bruno API format support for Obsidian",
+	"author": "masykurisyaifullah",
+	"authorUrl": "https://github.com/msyaifullah",
+	"fundingUrl": "",
+	"isDesktopOnly": false
 }
