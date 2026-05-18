@@ -1,0 +1,20 @@
+# Dependencies
+node_modules
+
+# Build output
+main.js
+main.js.map
+
+# TypeScript cache
+*.tsbuildinfo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+
+# Obsidian local settings
+data.json
