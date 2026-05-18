@@ -1,6 +1,6 @@
 {
-  "name": "obsidian-brunet",
-  "version": "1.0.0",
+  "name": "brunet",
+  "version": "0.1.0",
   "description": "Brunet — Bruno API format support for Obsidian",
   "main": "main.js",
   "scripts": {
