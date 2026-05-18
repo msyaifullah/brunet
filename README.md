@@ -119,6 +119,29 @@ npm run version  # bump version in manifest.json and versions.json
 
 **Stack:** TypeScript, esbuild, CodeMirror 6, Obsidian Plugin API
 
+## Releasing
+
+Releases are automated via GitHub Actions. When a version tag is pushed, the workflow builds the plugin and creates a draft GitHub release with `main.js`, `manifest.json`, and `styles.css` attached.
+
+### Steps
+
+1. Bump the version (updates `package.json`, `manifest.json`, and `versions.json`, then commits and tags):
+   ```bash
+   npm version <new-version>
+   # e.g. npm version 0.2.0
+   ```
+
+2. Push the commit and tag:
+   ```bash
+   git push origin main --tags
+   ```
+
+3. Go to the **Releases** tab on GitHub, edit the draft, add release notes, and publish.
+
+### First-time setup
+
+Enable write permissions for GitHub Actions: **Settings → Actions → General → Workflow permissions → Read and write permissions**.
+
 ## License
 
 MIT — see [LICENSE](LICENSE)
