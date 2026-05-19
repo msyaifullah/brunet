@@ -8,12 +8,51 @@
  *  - Syntax-highlighted freeform content (scripts, body)
  */
 
-import { TextFileView, WorkspaceLeaf, Notice, TFile } from "obsidian";
+import { Plugin, TextFileView, WorkspaceLeaf, Notice, TFile } from "obsidian";
 import { parseBruFile, BruFile, BruKeyValue, getMethodColor } from "./bruParser";
 import { parseBruYml, isBrunoYml } from "./bruYmlParser";
 import { runBruRequest, BruResponse } from "./bruRunner";
 
 export const BRU_VIEW_TYPE = "bru-view";
+
+/** Overrides Obsidian readable line width on the bru-view leaf. */
+export const BRU_VIEW_LEAF_STYLES = `
+  .workspace-leaf-content[data-type="bru-view"] {
+    --file-line-width: 100%;
+    --line-width: 100%;
+    --max-width: none;
+  }
+  .workspace-leaf-content[data-type="bru-view"] .view-content,
+  .workspace-leaf-content[data-type="bru-view"] .view-content > * {
+    max-width: none !important;
+    width: 100% !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+  }
+  .workspace-leaf-content[data-type="bru-view"] .cm-sizer,
+  .workspace-leaf-content[data-type="bru-view"] .cm-contentContainer,
+  .workspace-leaf-content[data-type="bru-view"] .markdown-source-view,
+  .workspace-leaf-content[data-type="bru-view"] .markdown-preview-sizer {
+    max-width: none !important;
+    width: 100% !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+  }
+  .workspace-leaf-content[data-type="bru-view"] .bru-view-content,
+  .workspace-leaf-content[data-type="bru-view"] .bru-view-root {
+    max-width: none !important;
+    width: 100% !important;
+    box-sizing: border-box;
+  }
+`;
+
+export function registerBruViewLeafStyles(plugin: Plugin): void {
+  const style = document.createElement("style");
+  style.id = "brunet-bru-view-leaf";
+  style.textContent = BRU_VIEW_LEAF_STYLES;
+  document.head.appendChild(style);
+  plugin.register(() => style.remove());
+}
 
 export class BruFileView extends TextFileView {
   private contentDiv: HTMLDivElement;
@@ -21,8 +60,27 @@ export class BruFileView extends TextFileView {
 
   constructor(leaf: WorkspaceLeaf) {
     super(leaf);
+    this.applyFullWidthLayout();
     this.contentDiv = this.contentEl.createDiv({ cls: "bru-view-root" });
     this.responsePanel = this.contentDiv.createDiv({ cls: "bru-response-panel" });
+  }
+
+  async onOpen(): Promise<void> {
+    this.applyFullWidthLayout();
+  }
+
+  /** Obsidian constrains .view-content via --file-line-width; override on the leaf. */
+  private applyFullWidthLayout(): void {
+    this.containerEl.addClass("bru-file-view-leaf");
+    this.contentEl.addClass("bru-view-content");
+
+    const leafContent = this.containerEl.closest(
+      ".workspace-leaf-content",
+    ) as HTMLElement | null;
+    if (leafContent) {
+      leafContent.style.setProperty("--file-line-width", "100%");
+      leafContent.style.setProperty("--line-width", "100%");
+    }
   }
 
   getViewType(): string {
@@ -107,9 +165,10 @@ export class BruFileView extends TextFileView {
     style.textContent = `
       .bru-view-root {
         font-family: var(--font-interface);
+        width: 100%;
+        max-width: none;
+        box-sizing: border-box;
         padding: 1.5em;
-        max-width: 900px;
-        margin: 0 auto;
         color: var(--text-normal);
       }
       .bru-header {
