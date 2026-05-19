@@ -18,6 +18,11 @@ import {
 } from "./bruParser";
 import { parseBruYml, isBrunoYml } from "./bruYmlParser";
 import { runBruRequest, BruResponse, BruRunResult, BruRequestSnapshot } from "./bruRunner";
+import {
+  normalizeParsedUrl,
+  buildDisplayUrl,
+  applyUrlInputToParsed,
+} from "./bruUrlSync";
 
 export const BRU_VIEW_TYPE = "bru-view";
 
@@ -68,6 +73,7 @@ export class BruFileView extends TextFileView {
   private tabNav: HTMLElement | null = null;
   private tabHolder: HTMLElement | null = null;
   private consolePanel: HTMLElement | null = null;
+  private urlInput: HTMLInputElement | null = null;
   private lastConsole: BruRunResult | null = null;
   private consoleLoading = false;
 
@@ -149,6 +155,10 @@ export class BruFileView extends TextFileView {
     const parsed = this.parsed;
     const filename = this.file?.path ?? "request.bru";
     const editable = !this.isYml;
+
+    if (editable) {
+      normalizeParsedUrl(parsed);
+    }
 
     this.renderStyles();
     this.renderHeader(parsed, filename, editable);
@@ -633,6 +643,17 @@ export class BruFileView extends TextFileView {
     if (rawEl) rawEl.textContent = this.data;
   }
 
+  /** Update URL bar to match current path/query params (resolved URL). */
+  private syncUrlFromParams(): void {
+    if (!this.urlInput || !this.parsed || this.isYml) return;
+    this.urlInput.value = buildDisplayUrl(this.parsed);
+  }
+
+  private onParamFieldChange(): void {
+    this.syncUrlFromParams();
+    this.scheduleCommit();
+  }
+
   private renderHeader(parsed: BruFile, filename: string, editable: boolean): void {
     const method = parsed.request.method || "UNKNOWN";
     const url = parsed.request.url || "";
@@ -654,9 +675,10 @@ export class BruFileView extends TextFileView {
         cls: "bru-url-input",
         attr: { placeholder: "https://api.example.com/..." },
       });
-      urlInput.value = url;
+      this.urlInput = urlInput;
+      urlInput.value = buildDisplayUrl(parsed);
       urlInput.addEventListener("input", () => {
-        parsed.request.url = urlInput.value;
+        applyUrlInputToParsed(parsed, urlInput.value);
         this.scheduleCommit();
       });
     } else {
@@ -1000,6 +1022,7 @@ export class BruFileView extends TextFileView {
         valuePlaceholder: "Value",
         addAriaLabel: "Add path parameter",
         removeLabel: "Remove path parameter",
+        reflectInUrl: true,
       });
 
       const queryGroup = container.createDiv({ cls: "bru-param-group" });
@@ -1009,6 +1032,7 @@ export class BruFileView extends TextFileView {
         valuePlaceholder: "Value",
         addAriaLabel: "Add query parameter",
         removeLabel: "Remove query parameter",
+        reflectInUrl: true,
       });
       return;
     }
@@ -1077,8 +1101,12 @@ export class BruFileView extends TextFileView {
       valuePlaceholder: string;
       addAriaLabel: string;
       removeLabel: string;
+      reflectInUrl?: boolean;
     },
   ): void {
+    const onFieldChange = opts.reflectInUrl
+      ? () => this.onParamFieldChange()
+      : () => this.scheduleCommit();
     const table = container.createEl("table", {
       cls: "bru-kv-table bru-kv-table-editable",
     });
@@ -1102,7 +1130,7 @@ export class BruFileView extends TextFileView {
         enabledCb.addEventListener("change", () => {
           entry.enabled = enabledCb.checked;
           tr.toggleClass("bru-disabled", !entry.enabled);
-          this.scheduleCommit();
+          onFieldChange();
         });
 
         const keyTd = tr.createEl("td", { cls: "bru-key" });
@@ -1114,7 +1142,7 @@ export class BruFileView extends TextFileView {
         keyInput.value = entry.key;
         keyInput.addEventListener("input", () => {
           entry.key = keyInput.value;
-          this.scheduleCommit();
+          onFieldChange();
         });
 
         const valueTd = tr.createEl("td", { cls: "bru-value" });
@@ -1126,7 +1154,7 @@ export class BruFileView extends TextFileView {
         valueInput.value = entry.value;
         valueInput.addEventListener("input", () => {
           entry.value = valueInput.value;
-          this.scheduleCommit();
+          onFieldChange();
         });
 
         const actionTd = tr.createEl("td");
@@ -1138,7 +1166,7 @@ export class BruFileView extends TextFileView {
         removeBtn.addEventListener("click", () => {
           entries.splice(index, 1);
           renderRows();
-          this.scheduleCommit();
+          onFieldChange();
         });
       });
     };
@@ -1154,6 +1182,7 @@ export class BruFileView extends TextFileView {
     addBtn.addEventListener("click", () => {
       entries.push({ key: "", value: "", enabled: true });
       renderRows();
+      onFieldChange();
       const inputs = table.querySelectorAll<HTMLInputElement>(".bru-field-input");
       inputs[inputs.length - 2]?.focus();
     });
