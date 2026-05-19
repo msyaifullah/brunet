@@ -350,9 +350,38 @@ export function serializeBruFile(file: BruFile): string {
 
   raw = patchSectionContent(raw, "params:path", formatKeyValueLines(file.path));
 
-  const bodySection = file.bodyType ? `body:${file.bodyType}` : "body";
-  if (file.body.trim() || file.bodyType) {
-    raw = patchSectionContent(raw, bodySection, formatFreeformLines(file.body));
+  raw = patchBodySection(raw, file.bodyType, file.body);
+
+  return raw;
+}
+
+function findBodySectionName(lines: string[]): string | null {
+  for (let i = 0; i < lines.length; i++) {
+    const match = lines[i].trim().match(/^(body(?::[\w-]+)?)\s*\{$/i);
+    if (match) return match[1].toLowerCase();
+  }
+  return null;
+}
+
+function patchBodySection(raw: string, bodyType: string, bodyContent: string): string {
+  const sectionName = bodyType ? `body:${bodyType.toLowerCase()}` : "body";
+  const lines = raw.split("\n");
+  const existing = findBodySectionName(lines);
+
+  if (existing && existing !== sectionName) {
+    for (let i = 0; i < lines.length; i++) {
+      const match = lines[i].trim().match(/^body(?::[\w-]+)?\s*\{$/i);
+      if (match) {
+        lines[i] = `${sectionName} {`;
+        break;
+      }
+    }
+    raw = lines.join("\n");
+  }
+
+  const contentLines = formatFreeformLines(bodyContent);
+  if (bodyContent.trim() || bodyType || existing) {
+    return patchSectionContent(raw, sectionName, contentLines);
   }
 
   return raw;

@@ -23,6 +23,16 @@ import {
   buildDisplayUrl,
   applyUrlInputToParsed,
 } from "./bruUrlSync";
+import {
+  createBodyEditor,
+  canPrettifyBody,
+  canFoldBody,
+  prettifyBody,
+  inferBodyType,
+  normalizeBodyType,
+  BODY_TYPE_OPTIONS,
+  type BodyEditorHandle,
+} from "./bruBodyEditor";
 
 export const BRU_VIEW_TYPE = "bru-view";
 
@@ -74,6 +84,7 @@ export class BruFileView extends TextFileView {
   private tabHolder: HTMLElement | null = null;
   private consolePanel: HTMLElement | null = null;
   private urlInput: HTMLInputElement | null = null;
+  private bodyEditor: BodyEditorHandle | null = null;
   private lastConsole: BruRunResult | null = null;
   private consoleLoading = false;
 
@@ -138,6 +149,7 @@ export class BruFileView extends TextFileView {
   }
 
   private render(): void {
+    this.destroyBodyEditor();
     this.contentDiv.empty();
 
     if (!this.data) {
@@ -241,23 +253,59 @@ export class BruFileView extends TextFileView {
         border-color: var(--interactive-accent);
         outline: none;
       }
-      .bru-body-textarea {
-        width: 100%;
-        min-height: 8em;
-        font-family: var(--font-monospace);
-        font-size: 0.85em;
-        padding: 0.75em 1em;
-        border-radius: 4px;
-        border: 1px solid var(--background-modifier-border);
-        background: var(--background-secondary);
-        color: var(--text-normal);
-        line-height: 1.55;
-        resize: vertical;
-        box-sizing: border-box;
+      .bru-body-editor-toolbar {
+        display: flex;
+        align-items: center;
+        gap: var(--size-4-2);
+        margin-bottom: var(--size-4-2);
       }
-      .bru-body-textarea:focus {
-        border-color: var(--interactive-accent);
-        outline: none;
+      .bru-body-type-wrap {
+        display: flex;
+        align-items: center;
+        gap: var(--size-2-2);
+      }
+      .bru-body-type-label {
+        font-size: var(--font-ui-smaller);
+        color: var(--text-muted);
+      }
+      .bru-body-type-select {
+        font-size: var(--font-ui-small);
+        padding: var(--size-2-1) var(--size-4-2);
+        border-radius: var(--radius-s);
+        border: 1px solid var(--background-modifier-border);
+        background: var(--background-primary);
+        color: var(--text-normal);
+      }
+      .bru-body-toolbar-actions {
+        display: flex;
+        align-items: center;
+        gap: var(--size-2-1);
+      }
+      .bru-body-toolbar-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: var(--size-4-4);
+        height: var(--size-4-4);
+        padding: 0;
+        border-radius: var(--radius-s);
+        color: var(--text-muted);
+      }
+      .bru-body-toolbar-btn:hover {
+        color: var(--interactive-accent);
+        background: var(--background-modifier-hover);
+      }
+      .bru-body-toolbar-btn svg {
+        width: var(--icon-m);
+        height: var(--icon-m);
+      }
+      .bru-body-fold-hint {
+        margin-left: auto;
+        font-size: var(--font-ui-smaller);
+        color: var(--text-faint);
+      }
+      .bru-body-cm-mount .cm-editor {
+        width: 100%;
       }
       .bru-kv-actions {
         display: flex;
@@ -350,7 +398,7 @@ export class BruFileView extends TextFileView {
       .brunet-request-tabs .brunet-tab-panel.is-active {
         display: block;
       }
-      .brunet-request-tabs .brunet-tab-panel .bru-body-textarea {
+      .brunet-request-tabs .brunet-tab-panel .bru-body-cm-mount {
         min-height: 14em;
         width: 100%;
         box-sizing: border-box;
@@ -644,6 +692,24 @@ export class BruFileView extends TextFileView {
   }
 
   /** Update URL bar to match current path/query params (resolved URL). */
+  private destroyBodyEditor(): void {
+    this.bodyEditor?.destroy();
+    this.bodyEditor = null;
+  }
+
+  private createBodyToolbarIconBtn(
+    parent: HTMLElement,
+    icon: string,
+    label: string,
+  ): HTMLButtonElement {
+    const btn = parent.createEl("button", {
+      cls: "clickable-icon bru-body-toolbar-btn",
+      attr: { "aria-label": label, title: label },
+    });
+    setIcon(btn, icon);
+    return btn;
+  }
+
   private syncUrlFromParams(): void {
     if (!this.urlInput || !this.parsed || this.isYml) return;
     this.urlInput.value = buildDisplayUrl(this.parsed);
@@ -1224,14 +1290,105 @@ export class BruFileView extends TextFileView {
     }
 
     if (editable) {
-      const textarea = container.createEl("textarea", {
-        cls: "bru-body-textarea",
-        attr: { placeholder: "Request body…", spellcheck: "false" },
+      container.empty();
+
+      if (!parsed.bodyType) {
+        parsed.bodyType = inferBodyType(parsed.body);
+      }
+
+      const toolbar = container.createDiv({ cls: "bru-body-editor-toolbar" });
+      const typeWrap = toolbar.createDiv({ cls: "bru-body-type-wrap" });
+      typeWrap.createSpan({ text: "Type", cls: "bru-body-type-label" });
+
+      const typeSelect = typeWrap.createEl("select", { cls: "bru-body-type-select" });
+      for (const option of BODY_TYPE_OPTIONS) {
+        const opt = typeSelect.createEl("option", {
+          text: option.toUpperCase(),
+          value: option,
+        });
+        if (option === normalizeBodyType(parsed.bodyType)) {
+          opt.selected = true;
+        }
+      }
+
+      const toolbarActions = toolbar.createDiv({ cls: "bru-body-toolbar-actions" });
+
+      const prettifyBtn = this.createBodyToolbarIconBtn(
+        toolbarActions,
+        "code-2",
+        "Prettify",
+      );
+      const collapseAllBtn = this.createBodyToolbarIconBtn(
+        toolbarActions,
+        "fold-vertical",
+        "Collapse all",
+      );
+      const expandAllBtn = this.createBodyToolbarIconBtn(
+        toolbarActions,
+        "unfold-vertical",
+        "Expand all",
+      );
+
+      const foldHint = toolbar.createSpan({
+        text: "Click ▸ in the gutter to fold blocks",
+        cls: "bru-body-fold-hint",
       });
-      textarea.value = parsed.body;
-      textarea.addEventListener("input", () => {
-        parsed.body = textarea.value;
+
+      const editorHost = container.createDiv({ cls: "bru-body-editor-host" });
+
+      const syncToolbarForBodyType = (bodyType: string) => {
+        const structured = canPrettifyBody(bodyType);
+        prettifyBtn.hidden = !structured;
+        collapseAllBtn.hidden = !canFoldBody(bodyType);
+        expandAllBtn.hidden = !canFoldBody(bodyType);
+        foldHint.hidden = !canFoldBody(bodyType);
+      };
+
+      const mountEditor = () => {
+        this.destroyBodyEditor();
+        editorHost.empty();
+        const bodyType = normalizeBodyType(parsed.bodyType);
+        syncToolbarForBodyType(bodyType);
+        this.bodyEditor = createBodyEditor(
+          editorHost,
+          parsed.body,
+          bodyType,
+          (value) => {
+            parsed.body = value;
+            this.scheduleCommit();
+          },
+        );
+      };
+
+      syncToolbarForBodyType(parsed.bodyType);
+      mountEditor();
+
+      typeSelect.addEventListener("change", () => {
+        parsed.bodyType = normalizeBodyType(typeSelect.value);
+        mountEditor();
         this.scheduleCommit();
+      });
+
+      prettifyBtn.addEventListener("click", () => {
+        if (!this.bodyEditor || !this.parsed) return;
+        const bodyType = normalizeBodyType(this.parsed.bodyType);
+        try {
+          const formatted = prettifyBody(this.bodyEditor.getValue(), bodyType);
+          this.bodyEditor.setValue(formatted);
+          this.parsed.body = formatted;
+          this.scheduleCommit();
+        } catch (err: unknown) {
+          const msg = err instanceof Error ? err.message : String(err);
+          new Notice(`Prettify failed: ${msg}`);
+        }
+      });
+
+      collapseAllBtn.addEventListener("click", () => {
+        this.bodyEditor?.foldAll();
+      });
+
+      expandAllBtn.addEventListener("click", () => {
+        this.bodyEditor?.unfoldAll();
       });
     } else {
       const code = container.createDiv({ cls: "bru-code-block" });
