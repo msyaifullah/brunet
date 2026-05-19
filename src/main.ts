@@ -15,7 +15,7 @@ import {
   addIcon,
 } from "obsidian";
 
-import { BruFileView, BRU_VIEW_TYPE } from "./bruView";
+import { BruFileView, BRU_VIEW_TYPE, registerBruViewLeafStyles } from "./bruView";
 import { bruStreamLanguage } from "./bruHighlight";
 import { CollectionView, COLLECTION_VIEW_TYPE } from "./collectionView";
 
@@ -36,6 +36,8 @@ export default class BrunetPlugin extends Plugin {
   async onload(): Promise<void> {
     // Register SVG icon
     addIcon(BRUNO_ICON_ID, BRUNO_ICON_SVG);
+
+    registerBruViewLeafStyles(this);
 
     // Register the custom view type for .bru files
     this.registerView(BRU_VIEW_TYPE, (leaf: WorkspaceLeaf) => new BruFileView(leaf));

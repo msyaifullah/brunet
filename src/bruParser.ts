@@ -40,6 +40,7 @@ export interface BruFile {
   request: BruRequest;
   headers: BruKeyValue[];
   query: BruKeyValue[];
+  path: BruKeyValue[];
   body: string;
   bodyType: string;
   varsPreRequest: BruKeyValue[];
@@ -99,6 +100,7 @@ export function parseBruFile(content: string): BruFile {
     request: { method: "", url: "", body: "none", auth: "none" },
     headers: [],
     query: [],
+    path: [],
     body: "",
     bodyType: "",
     varsPreRequest: [],
@@ -185,8 +187,13 @@ function applySectionToResult(
     return;
   }
 
-  if (sectionName === "query") {
+  if (sectionName === "query" || sectionName === "params:query") {
     result.query = parseKeyValueLines(sectionLines);
+    return;
+  }
+
+  if (sectionName === "params:path") {
+    result.path = parseKeyValueLines(sectionLines);
     return;
   }
 
@@ -235,6 +242,149 @@ function applySectionToResult(
 
 export function isFreeformSection(sectionName: string): boolean {
   return FREEFORM_SECTIONS.has(sectionName.toLowerCase());
+}
+
+function formatKeyValueLines(entries: BruKeyValue[]): string[] {
+  return entries
+    .filter((e) => e.key.trim())
+    .map((kv) => {
+      const prefix = kv.enabled ? "  " : "  ~";
+      if (!kv.value) return `${prefix}${kv.key}`;
+      return `${prefix}${kv.key}: ${kv.value}`;
+    });
+}
+
+function formatMethodLines(request: BruRequest): string[] {
+  const lines: string[] = [];
+  if (request.url) lines.push(`  url: ${request.url}`);
+  if (request.body && request.body !== "none") lines.push(`  body: ${request.body}`);
+  if (request.auth && request.auth !== "none") lines.push(`  auth: ${request.auth}`);
+  return lines;
+}
+
+function formatFreeformLines(content: string): string[] {
+  if (!content) return [];
+  return content.split("\n").map((line) => (line.length ? `  ${line}` : line));
+}
+
+type SectionBounds = {
+  headerIndex: number;
+  contentStart: number;
+  contentEnd: number;
+};
+
+function resolveQuerySectionName(raw: string): string {
+  const lines = raw.split("\n");
+  if (findSectionBounds(lines, "params:query")) return "params:query";
+  if (findSectionBounds(lines, "query")) return "query";
+  return "params:query";
+}
+
+function findSectionBounds(lines: string[], sectionName: string): SectionBounds | null {
+  const normalized = sectionName.toLowerCase();
+  for (let i = 0; i < lines.length; i++) {
+    const match = lines[i].trim().match(/^([\w:~-]+)\s*\{$/);
+    if (!match || match[1].toLowerCase() !== normalized) continue;
+
+    let depth = 1;
+    let j = i + 1;
+    const contentStart = j;
+    while (j < lines.length && depth > 0) {
+      const trimSl = lines[j].trim();
+      if (trimSl === "{") depth++;
+      else if (trimSl === "}") {
+        depth--;
+        if (depth === 0) break;
+      }
+      j++;
+    }
+    return { headerIndex: i, contentStart, contentEnd: j };
+  }
+  return null;
+}
+
+function patchSectionContent(
+  raw: string,
+  sectionName: string,
+  contentLines: string[],
+): string {
+  const lines = raw.split("\n");
+  const bounds = findSectionBounds(lines, sectionName);
+
+  if (bounds) {
+    const updated = [
+      ...lines.slice(0, bounds.contentStart),
+      ...contentLines,
+      ...lines.slice(bounds.contentEnd),
+    ];
+    return updated.join("\n");
+  }
+
+  const block = [sectionName + " {", ...contentLines, "}"];
+  const trimmed = raw.trimEnd();
+  return trimmed ? `${trimmed}\n\n${block.join("\n")}\n` : `${block.join("\n")}\n`;
+}
+
+/**
+ * Apply structured edits back into the original .bru text, preserving
+ * sections and order that were not modified.
+ */
+export function serializeBruFile(file: BruFile): string {
+  let raw = file.raw;
+
+  if (file.request.method) {
+    raw = patchSectionContent(
+      raw,
+      file.request.method.toLowerCase(),
+      formatMethodLines(file.request),
+    );
+  }
+
+  raw = patchSectionContent(raw, "headers", formatKeyValueLines(file.headers));
+
+  raw = patchSectionContent(
+    raw,
+    resolveQuerySectionName(raw),
+    formatKeyValueLines(file.query),
+  );
+
+  raw = patchSectionContent(raw, "params:path", formatKeyValueLines(file.path));
+
+  raw = patchBodySection(raw, file.bodyType, file.body);
+
+  return raw;
+}
+
+function findBodySectionName(lines: string[]): string | null {
+  for (let i = 0; i < lines.length; i++) {
+    const match = lines[i].trim().match(/^(body(?::[\w-]+)?)\s*\{$/i);
+    if (match) return match[1].toLowerCase();
+  }
+  return null;
+}
+
+function patchBodySection(raw: string, bodyType: string, bodyContent: string): string {
+  const sectionName = bodyType ? `body:${bodyType.toLowerCase()}` : "body";
+  const lines = raw.split("\n");
+  const existing = findBodySectionName(lines);
+
+  if (existing && existing !== sectionName) {
+    for (let i = 0; i < lines.length; i++) {
+      const match = lines[i].trim().match(/^body(?::[\w-]+)?\s*\{$/i);
+      if (match) {
+        lines[i] = `${sectionName} {`;
+        break;
+      }
+    }
+    raw = lines.join("\n");
+  }
+
+  const contentLines = formatFreeformLines(bodyContent);
+  if (bodyContent.trim() || bodyType || existing) {
+    return patchSectionContent(raw, sectionName, contentLines);
+  }
+
+  return raw;
 }
 
 export function getMethodColor(method: string): string {
