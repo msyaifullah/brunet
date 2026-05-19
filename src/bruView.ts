@@ -29,6 +29,7 @@ import {
   canFoldBody,
   prettifyBody,
   inferBodyType,
+  inferBodyTypeFromHeaders,
   normalizeBodyType,
   BODY_TYPE_OPTIONS,
   type BodyEditorHandle,
@@ -102,6 +103,7 @@ export class BruFileView extends TextFileView {
   private consolePanel: HTMLElement | null = null;
   private urlInput: HTMLInputElement | null = null;
   private bodyEditor: BodyEditorHandle | null = null;
+  private consoleEditors: BodyEditorHandle[] = [];
   private lastConsole: BruRunResult | null = null;
   private consoleLoading = false;
 
@@ -167,6 +169,7 @@ export class BruFileView extends TextFileView {
 
   private render(): void {
     this.destroyBodyEditor();
+    this.destroyConsoleEditors();
     this.contentDiv.empty();
 
     if (!this.data) {
@@ -686,6 +689,26 @@ export class BruFileView extends TextFileView {
         flex-shrink: 0;
         margin-top: 0.15em;
       }
+      .bru-console-body-view {
+        margin-top: var(--size-2-2);
+      }
+      .bru-console-body-editor-host {
+        min-height: 12em;
+        max-height: 28em;
+      }
+      .bru-console-body-editor-host .bru-body-cm-mount {
+        flex: none;
+      }
+      .bru-console-body-editor-host .bru-body-cm-mount .cm-editor {
+        height: auto;
+        min-height: 12em;
+        max-height: 28em;
+        flex: none;
+      }
+      .bru-console-body-editor-host .bru-body-cm-mount .cm-scroller {
+        max-height: 28em;
+        overflow: auto;
+      }
       .bru-console-url {
         font-family: var(--font-monospace);
         font-size: var(--font-ui-small);
@@ -760,6 +783,86 @@ export class BruFileView extends TextFileView {
   private destroyBodyEditor(): void {
     this.bodyEditor?.destroy();
     this.bodyEditor = null;
+  }
+
+  private destroyConsoleEditors(): void {
+    for (const editor of this.consoleEditors) {
+      editor.destroy();
+    }
+    this.consoleEditors = [];
+  }
+
+  private formatConsoleBodyDisplay(content: string, bodyType: string): string {
+    if (!content.trim() || !canPrettifyBody(bodyType)) return content;
+    try {
+      return prettifyBody(content, bodyType);
+    } catch {
+      return content;
+    }
+  }
+
+  /** Read-only CodeMirror viewer (same chrome as Body tab editor). */
+  private mountConsoleBodyViewer(
+    parent: HTMLElement,
+    content: string,
+    bodyType: string,
+  ): void {
+    const wrap = parent.createDiv({ cls: "bru-console-body-view" });
+    const toolbar = wrap.createDiv({ cls: "bru-body-editor-toolbar" });
+    const toolbarActions = toolbar.createDiv({ cls: "bru-body-toolbar-actions" });
+
+    const prettifyBtn = this.createBodyToolbarIconBtn(
+      toolbarActions,
+      "code-2",
+      "Prettify",
+    );
+    const collapseAllBtn = this.createBodyToolbarIconBtn(
+      toolbarActions,
+      "fold-vertical",
+      "Collapse all",
+    );
+    const expandAllBtn = this.createBodyToolbarIconBtn(
+      toolbarActions,
+      "unfold-vertical",
+      "Expand all",
+    );
+
+    const editorHost = wrap.createDiv({
+      cls: "bru-console-body-editor-host bru-body-editor-host",
+    });
+
+    const normalizedType = normalizeBodyType(bodyType);
+    const display = this.formatConsoleBodyDisplay(content, normalizedType);
+
+    const editor = createBodyEditor(
+      editorHost,
+      display,
+      normalizedType,
+      undefined,
+      { readOnly: true },
+    );
+    this.consoleEditors.push(editor);
+
+    const syncToolbar = () => {
+      const structured = canPrettifyBody(normalizedType);
+      prettifyBtn.hidden = !structured;
+      collapseAllBtn.hidden = !canFoldBody(normalizedType);
+      expandAllBtn.hidden = !canFoldBody(normalizedType);
+    };
+    syncToolbar();
+
+    prettifyBtn.addEventListener("click", () => {
+      try {
+        const formatted = prettifyBody(editor.getValue(), normalizedType);
+        editor.setValue(formatted);
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        new Notice(`Prettify failed: ${msg}`);
+      }
+    });
+
+    collapseAllBtn.addEventListener("click", () => editor.foldAll());
+    expandAllBtn.addEventListener("click", () => editor.unfoldAll());
   }
 
   private createBodyToolbarIconBtn(
@@ -878,6 +981,7 @@ export class BruFileView extends TextFileView {
   }
 
   private renderConsole(container: HTMLElement): void {
+    this.destroyConsoleEditors();
     container.empty();
 
     if (this.consoleLoading) {
@@ -943,7 +1047,10 @@ export class BruFileView extends TextFileView {
         cls: "bru-section-count",
       });
       const bodyContent = bodyDetails.createDiv({ cls: "bru-section-body" });
-      bodyContent.createDiv({ text: req.body, cls: "bru-code-block" });
+      const bodyType = this.parsed?.bodyType
+        ? normalizeBodyType(this.parsed.bodyType)
+        : inferBodyTypeFromHeaders(req.headers, req.body);
+      this.mountConsoleBodyViewer(bodyContent, req.body, bodyType);
     }
   }
 
@@ -1005,13 +1112,13 @@ export class BruFileView extends TextFileView {
       bodySummary.createEl("span", { text: note, cls: "bru-section-count" });
 
       const bodyContent = bodyDetails.createDiv({ cls: "bru-section-body" });
-      const codeBlock = bodyContent.createDiv({ cls: "bru-code-block" });
-
-      if (resp.json !== null) {
-        codeBlock.textContent = JSON.stringify(resp.json, null, 2);
-      } else {
-        codeBlock.textContent = resp.body;
-      }
+      const responseText =
+        resp.json !== null ? JSON.stringify(resp.json, null, 2) : resp.body;
+      const bodyType =
+        resp.json !== null
+          ? "json"
+          : inferBodyTypeFromHeaders(resp.headers ?? {}, responseText);
+      this.mountConsoleBodyViewer(bodyContent, responseText, bodyType);
     }
   }
 

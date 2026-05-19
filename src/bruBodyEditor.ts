@@ -22,6 +22,11 @@ import {
 import { json } from "@codemirror/lang-json";
 import { xml } from "@codemirror/lang-xml";
 
+export interface BodyEditorOptions {
+  /** When true, content cannot be edited (console request/response bodies). */
+  readOnly?: boolean;
+}
+
 export interface BodyEditorHandle {
   view: EditorView;
   destroy: () => void;
@@ -29,6 +34,22 @@ export interface BodyEditorHandle {
   setValue: (value: string) => void;
   foldAll: () => void;
   unfoldAll: () => void;
+}
+
+/** Infer body syntax from Content-Type when present. */
+export function inferBodyTypeFromHeaders(
+  headers: Record<string, string>,
+  body: string,
+  fallback = "",
+): BodyTypeOption {
+  const ct =
+    headers["content-type"] ??
+    headers["Content-Type"] ??
+    "";
+  const lower = ct.toLowerCase();
+  if (lower.includes("json")) return "json";
+  if (lower.includes("xml")) return "xml";
+  return inferBodyType(body, fallback);
 }
 
 export const BODY_TYPE_OPTIONS = ["json", "xml", "text"] as const;
@@ -123,24 +144,40 @@ function foldingExtensions(bodyType: string): Extension[] {
 
 function buildExtensions(
   bodyType: string,
-  onChange: (value: string) => void,
   isSuppressing: () => boolean,
+  options: BodyEditorOptions & { onChange?: (value: string) => void },
 ): Extension[] {
-  return [
+  const readOnly = options.readOnly === true;
+  const extensions: Extension[] = [
     editorTheme,
     lineNumbers(),
     highlightActiveLine(),
     highlightActiveLineGutter(),
     ...foldingExtensions(bodyType),
     ...languageExtension(bodyType),
-    cmPlaceholder("Request body…"),
-    keymap.of([...foldKeymap, ...defaultKeymap, indentWithTab]),
     EditorView.lineWrapping,
-    EditorView.updateListener.of((update) => {
-      if (isSuppressing() || !update.docChanged) return;
-      onChange(update.state.doc.toString());
-    }),
   ];
+
+  if (readOnly) {
+    extensions.push(EditorState.readOnly.of(true), EditorView.editable.of(false));
+    extensions.push(keymap.of([...foldKeymap]));
+  } else {
+    extensions.push(cmPlaceholder("Request body…"));
+    extensions.push(
+      keymap.of([...foldKeymap, ...defaultKeymap, indentWithTab]),
+    );
+    if (options.onChange) {
+      const onChange = options.onChange;
+      extensions.push(
+        EditorView.updateListener.of((update) => {
+          if (isSuppressing() || !update.docChanged) return;
+          onChange(update.state.doc.toString());
+        }),
+      );
+    }
+  }
+
+  return extensions;
 }
 
 const editorTheme = EditorView.theme({
@@ -200,7 +237,8 @@ export function createBodyEditor(
   parent: HTMLElement,
   initialValue: string,
   bodyType: string,
-  onChange: (value: string) => void,
+  onChange?: (value: string) => void,
+  options: BodyEditorOptions = {},
 ): BodyEditorHandle {
   const mount = parent.createDiv({ cls: "bru-body-cm-mount" });
 
@@ -208,7 +246,10 @@ export function createBodyEditor(
 
   const state = EditorState.create({
     doc: initialValue,
-    extensions: buildExtensions(bodyType, onChange, () => suppressChange),
+    extensions: buildExtensions(bodyType, () => suppressChange, {
+      ...options,
+      onChange,
+    }),
   });
 
   const view = new EditorView({ state, parent: mount });
