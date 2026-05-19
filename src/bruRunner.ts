@@ -17,6 +17,19 @@ export interface BruResponse {
   error?: string;
 }
 
+/** Resolved request sent over the wire (after vars, path, and query). */
+export interface BruRequestSnapshot {
+  method: string;
+  url: string;
+  headers: Record<string, string>;
+  body?: string;
+}
+
+export interface BruRunResult {
+  request: BruRequestSnapshot;
+  response: BruResponse;
+}
+
 function resolveVars(text: string, vars: Record<string, string>): string {
   return text.replace(/\{\{([^}]+)\}\}/g, (_match, key) => {
     const trimmed = key.trim();
@@ -58,7 +71,7 @@ export function getStatusText(status: number): string {
   return map[status] ?? `Status ${status}`;
 }
 
-export async function runBruRequest(parsed: BruFile): Promise<BruResponse> {
+export function buildBruRequest(parsed: BruFile): BruRequestSnapshot {
   const vars = buildVarsMap(parsed.varsPreRequest);
 
   let rawUrl = resolveVars(parsed.request.url, vars);
@@ -72,7 +85,7 @@ export async function runBruRequest(parsed: BruFile): Promise<BruResponse> {
     );
   }
 
-  const enabledQuery = parsed.query.filter(q => q.enabled);
+  const enabledQuery = parsed.query.filter((q) => q.enabled);
   if (enabledQuery.length > 0) {
     const params = new URLSearchParams();
     for (const q of enabledQuery) {
@@ -82,7 +95,6 @@ export async function runBruRequest(parsed: BruFile): Promise<BruResponse> {
     rawUrl = rawUrl + separator + params.toString();
   }
 
-  // Build headers
   const headers: Record<string, string> = {};
   for (const h of parsed.headers) {
     if (h.enabled) {
@@ -92,7 +104,6 @@ export async function runBruRequest(parsed: BruFile): Promise<BruResponse> {
     }
   }
 
-  // Build body
   const method = parsed.request.method.toUpperCase();
   const noBodyMethods = new Set(["GET", "HEAD"]);
   let bodyStr: string | undefined;
@@ -100,13 +111,18 @@ export async function runBruRequest(parsed: BruFile): Promise<BruResponse> {
     bodyStr = resolveVars(parsed.body.trim(), vars);
   }
 
+  return { method, url: rawUrl, headers, body: bodyStr };
+}
+
+export async function runBruRequest(parsed: BruFile): Promise<BruRunResult> {
+  const request = buildBruRequest(parsed);
   const startMs = Date.now();
   try {
     const resp = await requestUrl({
-      url: rawUrl,
-      method,
-      headers,
-      body: bodyStr,
+      url: request.url,
+      method: request.method,
+      headers: request.headers,
+      body: request.body,
     });
 
     const durationMs = Date.now() - startMs;
@@ -119,12 +135,15 @@ export async function runBruRequest(parsed: BruFile): Promise<BruResponse> {
     }
 
     return {
-      status: resp.status,
-      statusText: getStatusText(resp.status),
-      headers: resp.headers as Record<string, string>,
-      body: resp.text,
-      json: jsonResult,
-      durationMs,
+      request,
+      response: {
+        status: resp.status,
+        statusText: getStatusText(resp.status),
+        headers: resp.headers as Record<string, string>,
+        body: resp.text,
+        json: jsonResult,
+        durationMs,
+      },
     };
   } catch (err: unknown) {
     const durationMs = Date.now() - startMs;
@@ -152,26 +171,31 @@ export async function runBruRequest(parsed: BruFile): Promise<BruResponse> {
       }
 
       return {
-        status,
-        statusText: getStatusText(status),
-        headers: (httpErr.headers as Record<string, string>) ?? {},
-        body,
-        json: jsonResult,
-        durationMs,
-        error: `HTTP ${status}: ${getStatusText(status)}`,
+        request,
+        response: {
+          status,
+          statusText: getStatusText(status),
+          headers: (httpErr.headers as Record<string, string>) ?? {},
+          body,
+          json: jsonResult,
+          durationMs,
+          error: `HTTP ${status}: ${getStatusText(status)}`,
+        },
       };
     }
 
-    // Network error
     const message = err instanceof Error ? err.message : String(err);
     return {
-      status: 0,
-      statusText: "Network Error",
-      headers: {},
-      body: "",
-      json: null,
-      durationMs,
-      error: message,
+      request,
+      response: {
+        status: 0,
+        statusText: "Network Error",
+        headers: {},
+        body: "",
+        json: null,
+        durationMs,
+        error: message,
+      },
     };
   }
 }

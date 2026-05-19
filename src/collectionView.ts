@@ -184,7 +184,7 @@ export class CollectionView extends ItemView {
       this.app.vault.cachedRead(file).then(content => {
         const parsed = isYml ? parseBruYml(content) : parseBruFile(content);
         return runBruRequest(parsed);
-      }).then(resp => {
+      }).then(({ response: resp }) => {
         const is2xx = resp.status >= 200 && resp.status < 300;
         runBtn.textContent = String(resp.status || "ERR");
         runBtn.classList.add(is2xx ? "brunet-col-run-ok" : "brunet-col-run-err");
