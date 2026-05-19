@@ -151,7 +151,6 @@ export class BruFileView extends TextFileView {
 
     this.renderStyles();
     this.renderHeader(parsed, filename, editable);
-    this.renderMeta(parsed);
     this.renderRequestTabs(parsed, editable);
 
     // Response panel — always last, re-created fresh on each render
@@ -383,19 +382,6 @@ export class BruFileView extends TextFileView {
       .bru-copy-btn:hover {
         background: var(--interactive-accent);
         color: #fff;
-      }
-      .bru-meta-row {
-        display: flex;
-        gap: 1.5em;
-        margin-bottom: 1.25em;
-        flex-wrap: wrap;
-      }
-      .bru-meta-item {
-        font-size: 0.82em;
-        color: var(--text-muted);
-      }
-      .bru-meta-item strong {
-        color: var(--text-normal);
       }
       details.bru-section {
         margin-bottom: 0.75em;
@@ -737,32 +723,6 @@ export class BruFileView extends TextFileView {
       } else {
         codeBlock.textContent = resp.body;
       }
-    }
-  }
-
-  private renderMeta(parsed: BruFile): void {
-    if (!parsed.meta.name && !parsed.meta.type) return;
-
-    const row = this.contentDiv.createDiv({ cls: "bru-meta-row" });
-    if (parsed.meta.name) {
-      const item = row.createDiv({ cls: "bru-meta-item" });
-      item.createEl("strong", { text: "Name: " });
-      item.createSpan({ text: parsed.meta.name });
-    }
-    if (parsed.meta.type) {
-      const item = row.createDiv({ cls: "bru-meta-item" });
-      item.createEl("strong", { text: "Type: " });
-      item.createSpan({ text: parsed.meta.type });
-    }
-    if (parsed.meta.seq) {
-      const item = row.createDiv({ cls: "bru-meta-item" });
-      item.createEl("strong", { text: "Seq: " });
-      item.createSpan({ text: String(parsed.meta.seq) });
-    }
-    if (parsed.request.auth && parsed.request.auth !== "none") {
-      const item = row.createDiv({ cls: "bru-meta-item" });
-      item.createEl("strong", { text: "Auth: " });
-      item.createSpan({ text: parsed.request.auth });
     }
   }
 
