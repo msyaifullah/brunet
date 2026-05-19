@@ -61,8 +61,17 @@ export function getStatusText(status: number): string {
 export async function runBruRequest(parsed: BruFile): Promise<BruResponse> {
   const vars = buildVarsMap(parsed.varsPreRequest);
 
-  // Build URL with query params
   let rawUrl = resolveVars(parsed.request.url, vars);
+
+  for (const p of parsed.path.filter((e) => e.enabled && e.key.trim())) {
+    const key = resolveVars(p.key, vars);
+    const value = encodeURIComponent(resolveVars(p.value, vars));
+    rawUrl = rawUrl.replace(
+      new RegExp(`:${key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?=/|$|\\?|&)`, "g"),
+      value,
+    );
+  }
+
   const enabledQuery = parsed.query.filter(q => q.enabled);
   if (enabledQuery.length > 0) {
     const params = new URLSearchParams();

@@ -364,6 +364,20 @@ export class BruFileView extends TextFileView {
         font-style: italic;
         font-size: var(--font-ui-small);
       }
+      .bru-param-group {
+        margin-bottom: var(--size-4-4);
+      }
+      .bru-param-group:last-child {
+        margin-bottom: 0;
+      }
+      .bru-param-heading {
+        margin: 0 0 var(--size-4-2);
+        font-size: var(--font-ui-small);
+        font-weight: var(--font-semibold);
+        color: var(--text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+      }
       .bru-more-sections details.bru-section {
         margin-bottom: 0.5em;
       }
@@ -753,21 +767,17 @@ export class BruFileView extends TextFileView {
     const bodyPanel = this.createTab(tabNav, holder, "body", bodyLabel);
     this.renderBodyInto(bodyPanel, parsed, editable);
 
+    const paramCount =
+      parsed.query.filter((q) => q.key.trim()).length +
+      parsed.path.filter((p) => p.key.trim()).length;
     const paramsPanel = this.createTab(
       tabNav,
       holder,
       "params",
       "Params",
-      parsed.query.length,
+      paramCount,
     );
-    if (parsed.query.length) {
-      this.renderKeyValueTable(paramsPanel, parsed.query);
-    } else {
-      paramsPanel.createEl("p", {
-        text: "No query parameters.",
-        cls: "bru-tab-empty",
-      });
-    }
+    this.renderParamsTab(paramsPanel, parsed, editable);
 
     const morePanel = this.createTab(tabNav, holder, "more", "More");
     const moreSections = morePanel.createDiv({ cls: "bru-more-sections" });
@@ -842,6 +852,56 @@ export class BruFileView extends TextFileView {
     });
   }
 
+  private renderParamsTab(
+    container: HTMLElement,
+    parsed: BruFile,
+    editable: boolean,
+  ): void {
+    if (editable) {
+      const pathGroup = container.createDiv({ cls: "bru-param-group" });
+      pathGroup.createEl("h4", { text: "Path Parameters", cls: "bru-param-heading" });
+      this.renderEditableKeyValues(pathGroup, parsed.path, {
+        keyPlaceholder: "Parameter name",
+        valuePlaceholder: "Value",
+        addLabel: "+ Add path parameter",
+        removeLabel: "Remove path parameter",
+      });
+
+      const queryGroup = container.createDiv({ cls: "bru-param-group" });
+      queryGroup.createEl("h4", { text: "Query Parameters", cls: "bru-param-heading" });
+      this.renderEditableKeyValues(queryGroup, parsed.query, {
+        keyPlaceholder: "Parameter name",
+        valuePlaceholder: "Value",
+        addLabel: "+ Add query parameter",
+        removeLabel: "Remove query parameter",
+      });
+      return;
+    }
+
+    const pathEntries = parsed.path.filter((p) => p.key.trim());
+    const queryEntries = parsed.query.filter((q) => q.key.trim());
+
+    if (!pathEntries.length && !queryEntries.length) {
+      container.createEl("p", {
+        text: "No query or path parameters.",
+        cls: "bru-tab-empty",
+      });
+      return;
+    }
+
+    if (pathEntries.length) {
+      const pathGroup = container.createDiv({ cls: "bru-param-group" });
+      pathGroup.createEl("h4", { text: "Path Parameters", cls: "bru-param-heading" });
+      this.renderKeyValueTable(pathGroup, pathEntries);
+    }
+
+    if (queryEntries.length) {
+      const queryGroup = container.createDiv({ cls: "bru-param-group" });
+      queryGroup.createEl("h4", { text: "Query Parameters", cls: "bru-param-heading" });
+      this.renderKeyValueTable(queryGroup, queryEntries);
+    }
+  }
+
   private renderRequestDetails(parsed: BruFile, parent = this.contentDiv): void {
     // Request details block shown only when extra info exists beyond method/url
     if (
@@ -866,17 +926,35 @@ export class BruFileView extends TextFileView {
   }
 
   private renderEditableHeaders(container: HTMLElement, parsed: BruFile): void {
+    this.renderEditableKeyValues(container, parsed.headers, {
+      keyPlaceholder: "Header name",
+      valuePlaceholder: "Header value",
+      addLabel: "+ Add header",
+      removeLabel: "Remove header",
+    });
+  }
+
+  private renderEditableKeyValues(
+    container: HTMLElement,
+    entries: BruKeyValue[],
+    opts: {
+      keyPlaceholder: string;
+      valuePlaceholder: string;
+      addLabel: string;
+      removeLabel: string;
+    },
+  ): void {
     const table = container.createEl("table", {
       cls: "bru-kv-table bru-kv-table-editable",
     });
 
     const renderRows = () => {
       table.empty();
-      if (!parsed.headers.length) {
-        parsed.headers.push({ key: "", value: "", enabled: true });
+      if (!entries.length) {
+        entries.push({ key: "", value: "", enabled: true });
       }
 
-      parsed.headers.forEach((entry, index) => {
+      entries.forEach((entry, index) => {
         const tr = table.createEl("tr");
         if (!entry.enabled) tr.addClass("bru-disabled");
 
@@ -896,7 +974,7 @@ export class BruFileView extends TextFileView {
         const keyInput = keyTd.createEl("input", {
           type: "text",
           cls: "bru-field-input",
-          attr: { placeholder: "Header name" },
+          attr: { placeholder: opts.keyPlaceholder },
         });
         keyInput.value = entry.key;
         keyInput.addEventListener("input", () => {
@@ -908,7 +986,7 @@ export class BruFileView extends TextFileView {
         const valueInput = valueTd.createEl("input", {
           type: "text",
           cls: "bru-field-input",
-          attr: { placeholder: "Header value" },
+          attr: { placeholder: opts.valuePlaceholder },
         });
         valueInput.value = entry.value;
         valueInput.addEventListener("input", () => {
@@ -919,11 +997,11 @@ export class BruFileView extends TextFileView {
         const actionTd = tr.createEl("td");
         const removeBtn = actionTd.createEl("button", {
           cls: "clickable-icon bru-kv-remove",
-          attr: { "aria-label": "Remove header" },
+          attr: { "aria-label": opts.removeLabel },
         });
         setIcon(removeBtn, "trash-2");
         removeBtn.addEventListener("click", () => {
-          parsed.headers.splice(index, 1);
+          entries.splice(index, 1);
           renderRows();
           this.scheduleCommit();
         });
@@ -934,11 +1012,11 @@ export class BruFileView extends TextFileView {
 
     const actions = container.createDiv({ cls: "bru-kv-actions" });
     const addBtn = actions.createEl("button", {
-      text: "+ Add header",
+      text: opts.addLabel,
       cls: "bru-kv-btn",
     });
     addBtn.addEventListener("click", () => {
-      parsed.headers.push({ key: "", value: "", enabled: true });
+      entries.push({ key: "", value: "", enabled: true });
       renderRows();
       const inputs = table.querySelectorAll<HTMLInputElement>(".bru-field-input");
       inputs[inputs.length - 2]?.focus();

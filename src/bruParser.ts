@@ -40,6 +40,7 @@ export interface BruFile {
   request: BruRequest;
   headers: BruKeyValue[];
   query: BruKeyValue[];
+  path: BruKeyValue[];
   body: string;
   bodyType: string;
   varsPreRequest: BruKeyValue[];
@@ -99,6 +100,7 @@ export function parseBruFile(content: string): BruFile {
     request: { method: "", url: "", body: "none", auth: "none" },
     headers: [],
     query: [],
+    path: [],
     body: "",
     bodyType: "",
     varsPreRequest: [],
@@ -185,8 +187,13 @@ function applySectionToResult(
     return;
   }
 
-  if (sectionName === "query") {
+  if (sectionName === "query" || sectionName === "params:query") {
     result.query = parseKeyValueLines(sectionLines);
+    return;
+  }
+
+  if (sectionName === "params:path") {
+    result.path = parseKeyValueLines(sectionLines);
     return;
   }
 
@@ -266,6 +273,13 @@ type SectionBounds = {
   contentEnd: number;
 };
 
+function resolveQuerySectionName(raw: string): string {
+  const lines = raw.split("\n");
+  if (findSectionBounds(lines, "params:query")) return "params:query";
+  if (findSectionBounds(lines, "query")) return "query";
+  return "params:query";
+}
+
 function findSectionBounds(lines: string[], sectionName: string): SectionBounds | null {
   const normalized = sectionName.toLowerCase();
   for (let i = 0; i < lines.length; i++) {
@@ -327,6 +341,14 @@ export function serializeBruFile(file: BruFile): string {
   }
 
   raw = patchSectionContent(raw, "headers", formatKeyValueLines(file.headers));
+
+  raw = patchSectionContent(
+    raw,
+    resolveQuerySectionName(raw),
+    formatKeyValueLines(file.query),
+  );
+
+  raw = patchSectionContent(raw, "params:path", formatKeyValueLines(file.path));
 
   const bodySection = file.bodyType ? `body:${file.bodyType}` : "body";
   if (file.body.trim() || file.bodyType) {

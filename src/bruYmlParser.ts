@@ -65,6 +65,10 @@ export function parseBruYml(content: string): BruFile {
     .filter(p => (p.type ?? "query") === "query" && p.name && p.name.trim())
     .map(p => ({ key: p.name, value: String(p.value ?? ""), enabled: true }));
 
+  const path: BruKeyValue[] = (http.params ?? [])
+    .filter(p => p.type === "path" && p.name && p.name.trim())
+    .map(p => ({ key: p.name, value: String(p.value ?? ""), enabled: true }));
+
   const method = (http.method ?? "GET").toUpperCase();
 
   // Separate base URL from embedded query string so runner doesn't duplicate params
@@ -91,6 +95,7 @@ export function parseBruYml(content: string): BruFile {
     },
     headers,
     query,
+    path,
     body,
     bodyType,
     varsPreRequest: [],
