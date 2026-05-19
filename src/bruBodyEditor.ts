@@ -150,14 +150,13 @@ const editorTheme = EditorView.theme({
     backgroundColor: "var(--background-secondary)",
     border: "1px solid var(--background-modifier-border)",
     borderRadius: "var(--radius-s)",
+    height: "100%",
   },
   "&.cm-focused": {
     borderColor: "var(--interactive-accent)",
     outline: "none",
   },
   ".cm-scroller": {
-    minHeight: "14em",
-    maxHeight: "40em",
     fontFamily: "var(--font-monospace)",
   },
   ".cm-content": {

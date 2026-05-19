@@ -65,6 +65,23 @@ export const BRU_VIEW_LEAF_STYLES = `
     width: 100% !important;
     box-sizing: border-box;
   }
+  .workspace-leaf-content[data-type="bru-view"] {
+    height: 100%;
+  }
+  .workspace-leaf-content[data-type="bru-view"] .view-content {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .workspace-leaf-content[data-type="bru-view"] .bru-view-content {
+    flex: 1;
+    min-height: 0;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
 `;
 
 export function registerBruViewLeafStyles(plugin: Plugin): void {
@@ -192,13 +209,19 @@ export class BruFileView extends TextFileView {
         box-sizing: border-box;
         padding: var(--size-4-5);
         color: var(--text-normal);
-        overflow-x: hidden;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        flex: 1;
+        min-height: 0;
+        height: 100%;
       }
       .bru-header {
         display: flex;
         align-items: center;
         gap: 1em;
         margin-bottom: 1.5em;
+        flex-shrink: 0;
         padding: 1em 1.25em;
         background: var(--background-secondary);
         border-radius: 8px;
@@ -258,6 +281,13 @@ export class BruFileView extends TextFileView {
         align-items: center;
         gap: var(--size-4-2);
         margin-bottom: var(--size-4-2);
+        flex-shrink: 0;
+      }
+      .bru-body-editor-host {
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
       }
       .bru-body-type-wrap {
         display: flex;
@@ -304,8 +334,24 @@ export class BruFileView extends TextFileView {
         font-size: var(--font-ui-smaller);
         color: var(--text-faint);
       }
+      .bru-body-cm-mount {
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+      }
       .bru-body-cm-mount .cm-editor {
         width: 100%;
+        flex: 1;
+        min-height: 0;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+      }
+      .bru-body-cm-mount .cm-scroller {
+        flex: 1;
+        min-height: 0;
+        overflow: auto;
       }
       .bru-kv-actions {
         display: flex;
@@ -368,6 +414,10 @@ export class BruFileView extends TextFileView {
         width: 100%;
         min-width: 0;
         overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        flex: 1;
+        min-height: 0;
       }
       .brunet-tab-nav {
         display: flex;
@@ -377,6 +427,7 @@ export class BruFileView extends TextFileView {
         width: 100%;
         min-width: 0;
         border-bottom: 1px solid var(--background-modifier-border);
+        flex-shrink: 0;
       }
       .brunet-tab-nav .vertical-tab-nav-item {
         flex: 0 0 auto;
@@ -389,19 +440,33 @@ export class BruFileView extends TextFileView {
       .brunet-tab-body {
         width: 100%;
         min-width: 0;
+        min-height: 0;
+        flex: 1;
         padding: var(--size-4-4);
         box-sizing: border-box;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
       }
       .brunet-request-tabs .brunet-tab-panel {
         display: none;
       }
       .brunet-request-tabs .brunet-tab-panel.is-active {
-        display: block;
+        display: flex;
+        flex-direction: column;
+        flex: 1;
+        min-height: 0;
+        overflow: auto;
       }
-      .brunet-request-tabs .brunet-tab-panel .bru-body-cm-mount {
-        min-height: 14em;
-        width: 100%;
-        box-sizing: border-box;
+      .brunet-request-tabs .brunet-tab-panel[data-tab="body"].is-active {
+        overflow: hidden;
+      }
+      .bru-body-tab-content {
+        display: flex;
+        flex-direction: column;
+        flex: 1;
+        min-height: 0;
+        height: 100%;
       }
       .brunet-request-tabs .brunet-tab-count {
         margin-left: var(--size-2-2);
@@ -977,6 +1042,7 @@ export class BruFileView extends TextFileView {
     }
 
     const bodyPanel = this.createTab(tabNav, holder, "body", bodyLabel);
+    bodyPanel.addClass("brunet-tab-panel-body");
     this.renderBodyInto(bodyPanel, parsed, editable);
 
     const paramCount =
@@ -1291,6 +1357,7 @@ export class BruFileView extends TextFileView {
 
     if (editable) {
       container.empty();
+      container.addClass("bru-body-tab-content");
 
       if (!parsed.bodyType) {
         parsed.bodyType = inferBodyType(parsed.body);
