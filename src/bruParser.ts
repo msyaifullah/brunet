@@ -237,6 +237,105 @@ export function isFreeformSection(sectionName: string): boolean {
   return FREEFORM_SECTIONS.has(sectionName.toLowerCase());
 }
 
+function formatKeyValueLines(entries: BruKeyValue[]): string[] {
+  return entries
+    .filter((e) => e.key.trim())
+    .map((kv) => {
+      const prefix = kv.enabled ? "  " : "  ~";
+      if (!kv.value) return `${prefix}${kv.key}`;
+      return `${prefix}${kv.key}: ${kv.value}`;
+    });
+}
+
+function formatMethodLines(request: BruRequest): string[] {
+  const lines: string[] = [];
+  if (request.url) lines.push(`  url: ${request.url}`);
+  if (request.body && request.body !== "none") lines.push(`  body: ${request.body}`);
+  if (request.auth && request.auth !== "none") lines.push(`  auth: ${request.auth}`);
+  return lines;
+}
+
+function formatFreeformLines(content: string): string[] {
+  if (!content) return [];
+  return content.split("\n").map((line) => (line.length ? `  ${line}` : line));
+}
+
+type SectionBounds = {
+  headerIndex: number;
+  contentStart: number;
+  contentEnd: number;
+};
+
+function findSectionBounds(lines: string[], sectionName: string): SectionBounds | null {
+  const normalized = sectionName.toLowerCase();
+  for (let i = 0; i < lines.length; i++) {
+    const match = lines[i].trim().match(/^([\w:~-]+)\s*\{$/);
+    if (!match || match[1].toLowerCase() !== normalized) continue;
+
+    let depth = 1;
+    let j = i + 1;
+    const contentStart = j;
+    while (j < lines.length && depth > 0) {
+      const trimSl = lines[j].trim();
+      if (trimSl === "{") depth++;
+      else if (trimSl === "}") {
+        depth--;
+        if (depth === 0) break;
+      }
+      j++;
+    }
+    return { headerIndex: i, contentStart, contentEnd: j };
+  }
+  return null;
+}
+
+function patchSectionContent(
+  raw: string,
+  sectionName: string,
+  contentLines: string[],
+): string {
+  const lines = raw.split("\n");
+  const bounds = findSectionBounds(lines, sectionName);
+
+  if (bounds) {
+    const updated = [
+      ...lines.slice(0, bounds.contentStart),
+      ...contentLines,
+      ...lines.slice(bounds.contentEnd),
+    ];
+    return updated.join("\n");
+  }
+
+  const block = [sectionName + " {", ...contentLines, "}"];
+  const trimmed = raw.trimEnd();
+  return trimmed ? `${trimmed}\n\n${block.join("\n")}\n` : `${block.join("\n")}\n`;
+}
+
+/**
+ * Apply structured edits back into the original .bru text, preserving
+ * sections and order that were not modified.
+ */
+export function serializeBruFile(file: BruFile): string {
+  let raw = file.raw;
+
+  if (file.request.method) {
+    raw = patchSectionContent(
+      raw,
+      file.request.method.toLowerCase(),
+      formatMethodLines(file.request),
+    );
+  }
+
+  raw = patchSectionContent(raw, "headers", formatKeyValueLines(file.headers));
+
+  const bodySection = file.bodyType ? `body:${file.bodyType}` : "body";
+  if (file.body.trim() || file.bodyType) {
+    raw = patchSectionContent(raw, bodySection, formatFreeformLines(file.body));
+  }
+
+  return raw;
+}
+
 export function getMethodColor(method: string): string {
   const colors: Record<string, string> = {
     GET: "#61affe",

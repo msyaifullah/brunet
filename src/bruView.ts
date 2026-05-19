@@ -9,7 +9,13 @@
  */
 
 import { Plugin, TextFileView, WorkspaceLeaf, Notice, TFile } from "obsidian";
-import { parseBruFile, BruFile, BruKeyValue, getMethodColor } from "./bruParser";
+import {
+  parseBruFile,
+  serializeBruFile,
+  BruFile,
+  BruKeyValue,
+  getMethodColor,
+} from "./bruParser";
 import { parseBruYml, isBrunoYml } from "./bruYmlParser";
 import { runBruRequest, BruResponse } from "./bruRunner";
 
@@ -57,6 +63,9 @@ export function registerBruViewLeafStyles(plugin: Plugin): void {
 export class BruFileView extends TextFileView {
   private contentDiv: HTMLDivElement;
   private responsePanel: HTMLDivElement;
+  private parsed: BruFile | null = null;
+  private isYml = false;
+  private saveTimer: number | null = null;
 
   constructor(leaf: WorkspaceLeaf) {
     super(leaf);
@@ -105,6 +114,7 @@ export class BruFileView extends TextFileView {
     this.data = data;
     if (clear) {
       this.contentDiv.empty();
+      this.parsed = null;
     }
     this.render();
   }
@@ -131,21 +141,27 @@ export class BruFileView extends TextFileView {
       return;
     }
 
-    // Detect format from content, not extension — this.file may be null when setViewData fires
-    const parsed = isBrunoYml(this.data)
+    this.isYml = isBrunoYml(this.data);
+    this.parsed = this.isYml
       ? parseBruYml(this.data)
       : parseBruFile(this.data);
+    const parsed = this.parsed;
     const filename = this.file?.path ?? "request.bru";
+    const editable = !this.isYml;
 
     this.renderStyles();
-    this.renderHeader(parsed, filename);
+    this.renderHeader(parsed, filename, editable);
     this.renderMeta(parsed);
     this.renderRequestDetails(parsed);
-    this.renderKeyValueSection("Headers", parsed.headers, "headers");
+    if (editable) {
+      this.renderEditableHeaders(parsed);
+    } else {
+      this.renderKeyValueSection("Headers", parsed.headers, "headers");
+    }
     this.renderKeyValueSection("Query Parameters", parsed.query, "query");
     this.renderKeyValueSection("Variables (Pre-Request)", parsed.varsPreRequest, "vars-pre");
     this.renderKeyValueSection("Variables (Post-Response)", parsed.varsPostResponse, "vars-post");
-    this.renderBodySection(parsed);
+    this.renderBodySection(parsed, editable);
     this.renderScriptSection("Script: Pre-Request", parsed.scriptPreRequest, "script-pre");
     this.renderScriptSection("Script: Post-Response", parsed.scriptPostResponse, "script-post");
     this.renderAssertions(parsed);
@@ -199,6 +215,85 @@ export class BruFileView extends TextFileView {
         word-break: break-all;
         color: var(--text-normal);
         flex: 1;
+      }
+      .bru-url-input {
+        flex: 1;
+        min-width: 12em;
+        font-family: var(--font-monospace);
+        font-size: 0.95em;
+        padding: 0.35em 0.55em;
+        border-radius: 4px;
+        border: 1px solid var(--background-modifier-border);
+        background: var(--background-primary);
+        color: var(--text-normal);
+      }
+      .bru-url-input:focus {
+        border-color: var(--interactive-accent);
+        outline: none;
+      }
+      .bru-field-input {
+        width: 100%;
+        font-family: var(--font-monospace);
+        font-size: 0.88em;
+        padding: 0.3em 0.45em;
+        border-radius: 4px;
+        border: 1px solid var(--background-modifier-border);
+        background: var(--background-primary);
+        color: var(--text-normal);
+        box-sizing: border-box;
+      }
+      .bru-field-input:focus {
+        border-color: var(--interactive-accent);
+        outline: none;
+      }
+      .bru-body-textarea {
+        width: 100%;
+        min-height: 8em;
+        font-family: var(--font-monospace);
+        font-size: 0.85em;
+        padding: 0.75em 1em;
+        border-radius: 4px;
+        border: 1px solid var(--background-modifier-border);
+        background: var(--background-secondary);
+        color: var(--text-normal);
+        line-height: 1.55;
+        resize: vertical;
+        box-sizing: border-box;
+      }
+      .bru-body-textarea:focus {
+        border-color: var(--interactive-accent);
+        outline: none;
+      }
+      .bru-kv-actions {
+        display: flex;
+        gap: 0.5em;
+        margin-top: 0.6em;
+      }
+      .bru-kv-btn {
+        cursor: pointer;
+        padding: 0.25em 0.65em;
+        border-radius: 4px;
+        border: 1px solid var(--background-modifier-border);
+        background: var(--background-secondary);
+        color: var(--text-muted);
+        font-size: 0.8em;
+      }
+      .bru-kv-btn:hover {
+        color: var(--text-normal);
+        border-color: var(--interactive-accent);
+      }
+      .bru-kv-btn.bru-kv-btn-danger:hover {
+        border-color: #f93e3e;
+        color: #f93e3e;
+      }
+      .bru-kv-remove {
+        padding: 0.2em 0.45em;
+        font-size: 0.75em;
+        line-height: 1;
+      }
+      .bru-kv-enabled {
+        width: 1em;
+        vertical-align: middle;
       }
       .bru-copy-btn {
         margin-left: auto;
@@ -399,9 +494,38 @@ export class BruFileView extends TextFileView {
     `;
   }
 
-  private renderHeader(parsed: BruFile, filename: string): void {
+  private getParsedForRequest(): BruFile {
+    return this.parsed ?? parseBruFile(this.data);
+  }
+
+  private scheduleCommit(): void {
+    if (this.saveTimer !== null) window.clearTimeout(this.saveTimer);
+    this.saveTimer = window.setTimeout(() => {
+      this.commitEdits();
+      this.saveTimer = null;
+    }, 400);
+  }
+
+  private commitEdits(): void {
+    if (!this.parsed || this.isYml) return;
+
+    const newRaw = serializeBruFile(this.parsed);
+    if (newRaw === this.data) return;
+
+    this.data = newRaw;
+    this.parsed.raw = newRaw;
+    this.updateRawPreview();
+    this.requestSave();
+  }
+
+  private updateRawPreview(): void {
+    const rawEl = this.contentDiv.querySelector(".bru-raw-source");
+    if (rawEl) rawEl.textContent = this.data;
+  }
+
+  private renderHeader(parsed: BruFile, filename: string, editable: boolean): void {
     const method = parsed.request.method || "UNKNOWN";
-    const url = parsed.request.url || "(no URL)";
+    const url = parsed.request.url || "";
     const color = getMethodColor(method);
 
     const header = this.contentDiv.createDiv({ cls: "bru-header" });
@@ -414,7 +538,23 @@ export class BruFileView extends TextFileView {
     });
     badge.style.background = color;
 
-    header.createEl("span", { text: url, cls: "bru-url" });
+    if (editable) {
+      const urlInput = header.createEl("input", {
+        type: "text",
+        cls: "bru-url-input",
+        attr: { placeholder: "https://api.example.com/..." },
+      });
+      urlInput.value = url;
+      urlInput.addEventListener("input", () => {
+        parsed.request.url = urlInput.value;
+        this.scheduleCommit();
+      });
+    } else {
+      header.createEl("span", {
+        text: url || "(no URL)",
+        cls: "bru-url",
+      });
+    }
 
     const copyBtn = header.createEl("button", {
       text: "Copy CLI Command",
@@ -441,7 +581,7 @@ export class BruFileView extends TextFileView {
         cls: "bru-loading",
       });
 
-      runBruRequest(parsed).then(resp => {
+      runBruRequest(this.getParsedForRequest()).then(resp => {
         this.renderResponse(resp);
         sendBtn.disabled = false;
       }).catch((err: unknown) => {
@@ -576,6 +716,86 @@ export class BruFileView extends TextFileView {
     }
   }
 
+  private renderEditableHeaders(parsed: BruFile): void {
+    const details = this.makeDetails("Headers", "", parsed.headers.length);
+    details.open = true;
+    const body = details.createDiv({ cls: "bru-section-body" });
+    const table = body.createEl("table", { cls: "bru-kv-table bru-kv-table-editable" });
+
+    const renderRows = () => {
+      table.empty();
+      if (!parsed.headers.length) {
+        parsed.headers.push({ key: "", value: "", enabled: true });
+      }
+
+      parsed.headers.forEach((entry, index) => {
+        const tr = table.createEl("tr");
+        if (!entry.enabled) tr.addClass("bru-disabled");
+
+        const enabledTd = tr.createEl("td");
+        const enabledCb = enabledTd.createEl("input", {
+          type: "checkbox",
+          cls: "bru-kv-enabled",
+        });
+        enabledCb.checked = entry.enabled;
+        enabledCb.addEventListener("change", () => {
+          entry.enabled = enabledCb.checked;
+          tr.toggleClass("bru-disabled", !entry.enabled);
+          this.scheduleCommit();
+        });
+
+        const keyTd = tr.createEl("td", { cls: "bru-key" });
+        const keyInput = keyTd.createEl("input", {
+          type: "text",
+          cls: "bru-field-input",
+          attr: { placeholder: "Header name" },
+        });
+        keyInput.value = entry.key;
+        keyInput.addEventListener("input", () => {
+          entry.key = keyInput.value;
+          this.scheduleCommit();
+        });
+
+        const valueTd = tr.createEl("td", { cls: "bru-value" });
+        const valueInput = valueTd.createEl("input", {
+          type: "text",
+          cls: "bru-field-input",
+          attr: { placeholder: "Header value" },
+        });
+        valueInput.value = entry.value;
+        valueInput.addEventListener("input", () => {
+          entry.value = valueInput.value;
+          this.scheduleCommit();
+        });
+
+        const actionTd = tr.createEl("td");
+        const removeBtn = actionTd.createEl("button", {
+          text: "×",
+          cls: "bru-kv-btn bru-kv-remove bru-kv-btn-danger",
+        });
+        removeBtn.addEventListener("click", () => {
+          parsed.headers.splice(index, 1);
+          renderRows();
+          this.scheduleCommit();
+        });
+      });
+    };
+
+    renderRows();
+
+    const actions = body.createDiv({ cls: "bru-kv-actions" });
+    const addBtn = actions.createEl("button", {
+      text: "+ Add header",
+      cls: "bru-kv-btn",
+    });
+    addBtn.addEventListener("click", () => {
+      parsed.headers.push({ key: "", value: "", enabled: true });
+      renderRows();
+      const inputs = table.querySelectorAll<HTMLInputElement>(".bru-field-input");
+      inputs[inputs.length - 2]?.focus();
+    });
+  }
+
   private renderKeyValueSection(
     title: string,
     entries: BruKeyValue[],
@@ -597,17 +817,31 @@ export class BruFileView extends TextFileView {
     }
   }
 
-  private renderBodySection(parsed: BruFile): void {
-    if (!parsed.body.trim()) return;
+  private renderBodySection(parsed: BruFile, editable: boolean): void {
+    if (!editable && !parsed.body.trim()) return;
 
     const label = parsed.bodyType
       ? `Body (${parsed.bodyType})`
       : "Body";
 
     const details = this.makeDetails(label, "📦", 0);
+    details.open = true;
     const sectionBody = details.createDiv({ cls: "bru-section-body" });
-    const code = sectionBody.createDiv({ cls: "bru-code-block" });
-    this.renderValueWithVars(code, parsed.body.trim());
+
+    if (editable) {
+      const textarea = sectionBody.createEl("textarea", {
+        cls: "bru-body-textarea",
+        attr: { placeholder: "Request body…", spellcheck: "false" },
+      });
+      textarea.value = parsed.body;
+      textarea.addEventListener("input", () => {
+        parsed.body = textarea.value;
+        this.scheduleCommit();
+      });
+    } else {
+      const code = sectionBody.createDiv({ cls: "bru-code-block" });
+      this.renderValueWithVars(code, parsed.body.trim());
+    }
   }
 
   private renderScriptSection(
@@ -665,7 +899,7 @@ export class BruFileView extends TextFileView {
     const details = this.makeDetails("Raw Source", "🗒", 0);
     // Start collapsed (default)
     const body = details.createDiv({ cls: "bru-section-body" });
-    body.createDiv({ text: parsed.raw, cls: "bru-code-block" });
+    body.createDiv({ text: parsed.raw, cls: "bru-code-block bru-raw-source" });
   }
 
   /**
