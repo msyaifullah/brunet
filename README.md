@@ -8,16 +8,17 @@ An [Obsidian](https://obsidian.md) plugin that adds first-class support for [Bru
 - **Run requests** — send HTTP requests from within Obsidian and see the response (status, headers, body) inline
 - **Collections sidebar** — browse all `.bru` files in your vault grouped by folder, with per-file run buttons
 - **Syntax highlighting** — CodeMirror 6 language extension highlights `.bru`, `.yml`, and `.yaml` Bruno files in the editor
-- **Variable support** — resolves `{{variable}}` placeholders in URLs, headers, query params, and body
-- **Copy CLI command** — one-click copy of the `bru run <file>` command for terminal use
+- **Variable support** — resolves `{{variable}}` syntax in URLs, headers, query params, and body
+- **Copy CLI command** — one-click copy of the `bru run` command for the current file
 
 ## Installation
 
-### From Obsidian Community Plugins *(coming soon)*
+### From Obsidian Community Plugins
 
 1. Open **Settings → Community plugins**
 2. Disable Safe mode if prompted
-3. Search for **Brunet** and install
+3. Open **Browse**, search for **Brunet**, and install
+4. Enable the plugin in **Installed plugins**
 
 ### Manual
 
@@ -28,16 +29,16 @@ An [Obsidian](https://obsidian.md) plugin that adds first-class support for [Bru
 ### Development
 
 ```bash
-git clone https://github.com/masykurisyaifullah/obsidian-brunet
-cd obsidian-brunet
+git clone https://github.com/msyaifullah/brunet.git
+cd brunet
 npm install
 npm run dev
 ```
 
-Then symlink the project folder into your vault's `.obsidian/plugins/` directory and enable the plugin.
+Then symlink the project folder into your vault's plugin directory and enable the plugin (replace the vault path with your own):
 
 ```bash
-ln -s $(pwd) /path/to/your/vault/.obsidian/plugins/obsidian-brunet
+ln -s "$(pwd)" "$HOME/Documents/MyVault/.obsidian/plugins/brunet"
 ```
 
 ## Usage
@@ -64,7 +65,7 @@ Files are grouped by folder with collapsible sections. Click a row to open the f
 
 ### Copy CLI command
 
-Click the **Copy CLI** button in the file preview to copy `bru run <filename>` to your clipboard for use in a terminal.
+Click the **Copy CLI** button in the file preview to copy a `bru run` command for that file to your clipboard for use in a terminal.
 
 ## Supported `.bru` syntax
 
@@ -106,7 +107,7 @@ Supported block types: `meta`, HTTP method blocks (`get`, `post`, `put`, `patch`
 |---|---|
 | `Brunet: Run Request` | Execute the active `.bru` file |
 | `Brunet: Open Preview` | Open the rich preview for the active file |
-| `Brunet: Copy CLI Command` | Copy `bru run <file>` to clipboard |
+| `Brunet: Copy CLI Command` | Copy `bru run` for the active file to clipboard |
 | `Brunet: Open Collections Panel` | Show the collections sidebar |
 
 ## Development
@@ -129,8 +130,8 @@ Releases are automated via GitHub Actions. When a version tag is pushed, the wor
 
 1. Bump the version (updates `package.json`, `manifest.json`, and `versions.json`, then commits and tags):
    ```bash
-   npm version <new-version>
-   # e.g. npm version 0.3.5  →  creates tag 0.3.5 (no "v" prefix)
+   npm version 0.3.6
+   # creates tag 0.3.6 (no "v" prefix; must match manifest.json version)
    ```
 
 2. Push the commit and tag:
