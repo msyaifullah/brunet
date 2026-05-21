@@ -26,7 +26,12 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           tag="${GITHUB_REF#refs/tags/}"
+          assets=(main.js manifest.json)
+          # styles.css is optional per Obsidian docs; attach only if present
+          if [ -f styles.css ]; then
+            assets+=(styles.css)
+          fi
           gh release create "$tag" \
             --title="$tag" \
             --draft \
-            main.js manifest.json
+            "${assets[@]}"

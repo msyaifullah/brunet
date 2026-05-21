@@ -21,8 +21,8 @@ An [Obsidian](https://obsidian.md) plugin that adds first-class support for [Bru
 
 ### Manual
 
-1. Download `main.js`, `manifest.json`, and `styles.css` from the [latest release](../../releases/latest)
-2. Copy them into your vault at `.obsidian/plugins/obsidian-brunet/`
+1. Download `main.js` and `manifest.json` from the [latest release](../../releases/latest) (and `styles.css` if that release includes it)
+2. Copy them into your vault at `.obsidian/plugins/brunet/`
 3. Enable **Brunet** in **Settings → Community plugins**
 
 ### Development
@@ -121,14 +121,16 @@ npm run version  # bump version in manifest.json and versions.json
 
 ## Releasing
 
-Releases are automated via GitHub Actions. When a version tag is pushed, the workflow builds the plugin and creates a draft GitHub release with `main.js`, `manifest.json`, and `styles.css` attached.
+Releases are automated via GitHub Actions. When a version tag is pushed, the workflow builds the plugin and creates a draft GitHub release with `main.js` and `manifest.json` attached.
+
+**Tag format:** The GitHub release tag must match `manifest.json` `version` exactly (e.g. `0.3.4`, not `v0.3.4`). Obsidian installs assets from the release with that tag. This repo sets `tag-version-prefix=` in `.npmrc` so `npm version` creates the correct tags.
 
 ### Steps
 
 1. Bump the version (updates `package.json`, `manifest.json`, and `versions.json`, then commits and tags):
    ```bash
    npm version <new-version>
-   # e.g. npm version 0.2.0
+   # e.g. npm version 0.3.5  →  creates tag 0.3.5 (no "v" prefix)
    ```
 
 2. Push the commit and tag:
