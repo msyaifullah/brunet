@@ -18,6 +18,14 @@ import {
 import { BruFileView, BRU_VIEW_TYPE, registerBruViewLeafStyles } from "./bruView";
 import { bruStreamLanguage } from "./bruHighlight";
 import { CollectionView, COLLECTION_VIEW_TYPE } from "./collectionView";
+import { ServiceView, SERVICE_VIEW_TYPE } from "./serviceView";
+import { formatBruRunCommand } from "./bruCollection";
+import { isBrunoJsonFile } from "./bruJsonParser";
+import {
+  BrunetSettingTab,
+  DEFAULT_SETTINGS,
+  type BrunetSettings,
+} from "./settings";
 
 // ---------------------------------------------------------------------------
 // Icon SVG — a simple "B" logo in an API-style hex badge
@@ -33,20 +41,49 @@ const BRUNO_ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 
 </svg>`;
 
 export default class BrunetPlugin extends Plugin {
+  settings: BrunetSettings = DEFAULT_SETTINGS;
+  private environmentListeners = new Set<() => void>();
+
   async onload(): Promise<void> {
+    await this.loadSettings();
     // Register SVG icon
     addIcon(BRUNO_ICON_ID, BRUNO_ICON_SVG);
 
     registerBruViewLeafStyles(this);
 
     // Register the custom view type for .bru files
-    this.registerView(BRU_VIEW_TYPE, (leaf: WorkspaceLeaf) => new BruFileView(leaf));
+    this.registerView(
+      BRU_VIEW_TYPE,
+      (leaf: WorkspaceLeaf) => new BruFileView(leaf, this),
+    );
 
     // Register the collection sidebar view
-    this.registerView(COLLECTION_VIEW_TYPE, (leaf: WorkspaceLeaf) => new CollectionView(leaf));
+    this.registerView(
+      COLLECTION_VIEW_TYPE,
+      (leaf: WorkspaceLeaf) => new CollectionView(leaf, this),
+    );
+
+    this.registerView(
+      SERVICE_VIEW_TYPE,
+      (leaf: WorkspaceLeaf) => new ServiceView(leaf, this),
+    );
+
+    this.addSettingTab(new BrunetSettingTab(this.app, this));
 
     // Tell Obsidian to open .bru and Bruno YAML files with our custom view
     this.registerExtensions(["bru", "yml", "yaml"], BRU_VIEW_TYPE);
+
+    this.registerEvent(
+      this.app.workspace.on("file-open", (file) => {
+        if (!(file instanceof TFile) || !isBrunoJsonFile(file)) return;
+        const leaf = this.app.workspace.getMostRecentLeaf();
+        if (!leaf) return;
+        void leaf.setViewState({
+          type: BRU_VIEW_TYPE,
+          state: { file: file.path },
+        });
+      }),
+    );
 
     // Register the CodeMirror 6 language extension so that
     // .bru files opened in the editor get syntax highlighting
@@ -111,9 +148,17 @@ export default class BrunetPlugin extends Plugin {
       },
     });
 
-    // Auto-open collections panel on load
+    this.addCommand({
+      id: "open-brunet-service",
+      name: "Open Brunet panel",
+      callback: () => {
+        this.openServicePanel();
+      },
+    });
+
     this.app.workspace.onLayoutReady(() => {
       this.openCollectionsPanel();
+      void this.openServicePanel();
     });
   }
 
@@ -121,6 +166,28 @@ export default class BrunetPlugin extends Plugin {
     // Detach any open bru leaves so Obsidian cleans them up
     this.app.workspace.detachLeavesOfType(BRU_VIEW_TYPE);
     this.app.workspace.detachLeavesOfType(COLLECTION_VIEW_TYPE);
+    this.app.workspace.detachLeavesOfType(SERVICE_VIEW_TYPE);
+  }
+
+  onEnvironmentChange(listener: () => void): () => void {
+    this.environmentListeners.add(listener);
+    return () => this.environmentListeners.delete(listener);
+  }
+
+  async setActiveEnvironment(name: string): Promise<void> {
+    this.settings.activeEnvironment = name;
+    await this.saveSettings();
+    this.notifyEnvironmentListeners();
+  }
+
+  notifyVarsUpdated(): void {
+    this.notifyEnvironmentListeners();
+  }
+
+  private notifyEnvironmentListeners(): void {
+    for (const listener of this.environmentListeners) {
+      listener();
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -136,6 +203,18 @@ export default class BrunetPlugin extends Plugin {
     const leaf = this.app.workspace.getLeftLeaf(false);
     if (leaf) {
       await leaf.setViewState({ type: COLLECTION_VIEW_TYPE, active: true });
+    }
+  }
+
+  private async openServicePanel(): Promise<void> {
+    const existing = this.app.workspace.getLeavesOfType(SERVICE_VIEW_TYPE);
+    if (existing.length) {
+      this.app.workspace.revealLeaf(existing[0]);
+      return;
+    }
+    const leaf = this.app.workspace.getRightLeaf(false);
+    if (leaf) {
+      await leaf.setViewState({ type: SERVICE_VIEW_TYPE, active: true });
     }
   }
 
@@ -155,8 +234,16 @@ export default class BrunetPlugin extends Plugin {
     }
   }
 
+  async loadSettings(): Promise<void> {
+    this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+  }
+
+  async saveSettings(): Promise<void> {
+    await this.saveData(this.settings);
+  }
+
   private showRunNotice(file: TFile): void {
-    const cmd = `bru run "${file.path}"`;
+    const cmd = formatBruRunCommand(file.path, this.settings.activeEnvironment);
     new Notice(
       `Use Brunet CLI to run:\n${cmd}`,
       6000,
@@ -164,7 +251,7 @@ export default class BrunetPlugin extends Plugin {
   }
 
   private copyRunCommand(file: TFile): void {
-    const cmd = `bru run "${file.path}"`;
+    const cmd = formatBruRunCommand(file.path, this.settings.activeEnvironment);
     navigator.clipboard.writeText(cmd).then(() => {
       new Notice(`Copied to clipboard:\n${cmd}`);
     }).catch(() => {

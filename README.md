@@ -1,149 +1,146 @@
-# Brunet — Bruno API Support for Obsidian
+# Brunet
 
-An [Obsidian](https://obsidian.md) plugin that adds first-class support for [Bruno](https://www.usebruno.com/) `.bru` API request files. View, edit, and run HTTP requests directly inside your vault.
+**Bruno API collections inside Obsidian.** Open `.bru` and Bruno `.yml` request files, edit them visually, send HTTP requests, and browse your whole vault from the Collections sidebar — without leaving your notes.
 
-## Features
+## Screenshots
 
-- **Rich preview** — renders `.bru` files as a formatted request card with method, URL, headers, query params, body, scripts, and docs
-- **Run requests** — send HTTP requests from within Obsidian and see the response (status, headers, body) inline
-- **Collections sidebar** — browse all `.bru` files in your vault grouped by folder, with per-file run buttons
-- **Syntax highlighting** — CodeMirror 6 language extension highlights `.bru`, `.yml`, and `.yaml` Bruno files in the editor
-- **Variable support** — resolves `{{variable}}` syntax in URLs, headers, query params, and body
-- **Copy CLI command** — one-click copy of the `bru run` command for the current file
+<p align="center">
+  <img src="docs/images/overview.png" alt="Brunet workspace — Collections sidebar, request preview, and Send button" width="900">
+</p>
 
-## Installation
+<p align="center">
+  <img src="docs/images/request-preview.png" alt="Request preview with method, URL, headers, and Send button" width="900">
+</p>
 
-### From Obsidian Community Plugins
+<p align="center">
+  <img src="docs/images/console-response.png" alt="Console tab showing status, headers, and JSON response body" width="900">
+</p>
+
+<p align="center">
+  <img src="docs/images/collections-panel.png" alt="Collections panel with per-file run buttons" width="600">
+</p>
+
+<p align="center">
+  <img src="docs/images/environment-tab.png" alt="Environment tab with variable editor" width="900">
+</p>
+
+<p align="center">
+  <img src="docs/images/installation.png" alt="Installing Brunet from Obsidian Community plugins" width="900">
+</p>
+
+## Install
 
 1. Open **Settings → Community plugins**
-2. Disable Safe mode if prompted
-3. Open **Browse**, search for **Brunet**, and install
-4. Enable the plugin in **Installed plugins**
+2. Turn off **Safe mode** if prompted
+3. Click **Browse**, search for **Brunet**
+4. **Install**, then enable the plugin
 
-### Manual
+## Quick start
 
-1. Download `main.js` and `manifest.json` from the [latest release](../../releases/latest) (and `styles.css` if that release includes it)
-2. Copy them into your vault at `.obsidian/plugins/brunet/`
-3. Enable **Brunet** in **Settings → Community plugins**
+1. Put a [Bruno](https://www.usebruno.com/) collection in your vault (a folder with `bruno.json` or `collection.bru` at the root).
+2. Open any request file (`.bru` or runnable `.yml`) from the file explorer.
+3. Click **Send** to run the request. Results appear in the **Console** tab.
 
-### Development
+Brunet opens automatically with two sidebars:
 
-```bash
-git clone https://github.com/msyaifullah/brunet.git
-cd brunet
-npm install
-npm run dev
-```
+| Panel | Location | Purpose |
+|---|---|---|
+| **Brunet Collections** | Left sidebar | Browse and quick-run every request in the vault |
+| Request preview | Main editor | Edit and send the active request |
 
-Then symlink the project folder into your vault's plugin directory and enable the plugin (replace the vault path with your own):
+> **Tip:** Use the **Environment** tab (or **Settings → Brunet**) to pick a Bruno environment so `{{variables}}` resolve from `environments/*.bru` files.
 
-```bash
-ln -s "$(pwd)" "$HOME/Documents/MyVault/.obsidian/plugins/brunet"
-```
+## Request preview
 
-## Usage
+Every HTTP request opens as a formatted card instead of raw text.
 
-### Open a request file
+### Header bar
 
-Click any `.bru` file in the file explorer. The plugin renders a preview with all request details and a **Send** button to execute it live.
+- **Method** — change the HTTP verb from the dropdown; saved back to the file.
+- **URL** — edit inline; query and path params sync with the **Params** tab.
+- **Copy** (clipboard icon) — copies a `bru run` CLI command, including the active environment when set.
+- **Send** — runs the request inside Obsidian and switches to the **Console** tab.
 
-### Run a request
+### Tabs
 
-- Click **Send** in the file preview, or
-- Use the command palette: `Brunet: Run Request`, or
-- Click the **▶** button next to a file in the Collections panel
+| Tab | What it does |
+|---|---|
+| **Headers** | Edit request headers (enable/disable rows, add or remove keys) |
+| **Environment** | Select a Bruno environment and edit its variables |
+| **Body** | Edit the request body with syntax highlighting, folding, and prettify for JSON |
+| **Params** | Edit query and path parameters |
+| **Console** | Request snapshot and full response after **Send** |
+| **More** | Scripts, assertions, docs, and other Bruno blocks |
 
-The response (status code, headers, and body) appears inline below the request details. JSON responses are pretty-printed automatically.
+Changes in the preview are written back to the `.bru` / `.yml` file automatically.
 
-### Collections panel
+## Send a request & read the response
 
-Open the sidebar panel via:
-- The ribbon icon (B logo), or
-- Command palette: `Brunet: Open Collections Panel`
+After **Send**:
 
-Files are grouped by folder with collapsible sections. Click a row to open the file; click **▶** to run it.
+- **Console** shows the resolved request (URL, headers, body) and the response (status, duration, headers, body).
+- JSON responses are pretty-printed.
+- Requests use Obsidian's built-in HTTP client (works around browser CORS limits on desktop and mobile).
 
-### Copy CLI command
+From the **Collections** sidebar, click **▶** on any row to run that file without opening it. The button shows the status code when finished (e.g. `200` or `ERR`).
 
-Click the **Copy CLI** button in the file preview to copy a `bru run` command for that file to your clipboard for use in a terminal.
+## Collections sidebar
 
-## Supported `.bru` syntax
+Open via **Settings → Community plugins → Brunet** or the command palette: `Open Collections panel`.
 
-Brunet parses the Bruno plain-text block format:
+- Requests are grouped by folder with collapsible sections.
+- Each row shows the HTTP method, file name, and a **▶** run button.
+- Click the row to open the file; click **▶** to run only.
 
-```
-meta {
-  name: Get Users
-  type: http
-  seq: 1
-}
+Environment and collection variables are applied the same way as in the main preview.
 
-get {
-  url: https://api.example.com/users
-}
+## Environments & variables
 
-headers {
-  Authorization: Bearer {{token}}
-  Accept: application/json
-}
+Brunet resolves `{{variable}}` placeholders in URLs, headers, params, and body using:
 
-query {
-  page: 1
-  limit: 10
-}
+1. Collection- and folder-level variables from manifest files
+2. The selected **environment** (`environments/*.bru`)
+3. Request-level **vars** blocks (highest priority)
 
-body:json {
-  {
-    "filter": "active"
-  }
-}
-```
+Select an environment in the **Environment** tab or under **Settings → Brunet → Active environment**.
 
-Supported block types: `meta`, HTTP method blocks (`get`, `post`, `put`, `patch`, `delete`, `head`, `options`), `headers`, `query`, `vars`, `body`, `script:pre-request`, `script:post-response`, `assert`, `docs`.
+## Supported files
+
+| File | Role |
+|---|---|
+| `*.bru` | Standard Bruno HTTP requests |
+| `*.yml` / `*.yaml` | OpenCollection YAML requests |
+| `bruno.json` | Collection manifest (read-only overview) |
+| `collection.bru`, `folder.bru` | Collection / folder manifests |
+| `environments/*.bru` | Environment variable files (not listed as requests) |
+
+Syntax highlighting is applied when viewing `.bru`, `.yml`, and `.yaml` Bruno files in the editor.
 
 ## Commands
 
-| Command | Description |
+| Command | Action |
 |---|---|
-| `Brunet: Run Request` | Execute the active `.bru` file |
-| `Brunet: Open Preview` | Open the rich preview for the active file |
-| `Brunet: Copy CLI Command` | Copy `bru run` for the active file to clipboard |
-| `Brunet: Open Collections Panel` | Show the collections sidebar |
+| `Open Collections panel` | Show the Collections sidebar |
+| `Open Brunet panel` | Show the Brunet right sidebar |
+| `Copy 'bru run' command to clipboard` | Copy CLI command for the active `.bru` file |
+| `Open .bru file in preview mode` | Open the active file in the preview view |
+| `Run Brunet Request` | Show a notice with the `bru run` command (CLI) |
 
-## Development
+## Settings
+
+**Settings → Brunet**
+
+- **Active environment** — Bruno environment name (file in `environments/` without `.bru`). Prefer the **Environment** tab in the request view; this setting is used for CLI commands and collection quick-runs.
+
+## Bruno CLI
+
+Use the header **Copy** button or the `Copy 'bru run' command to clipboard` command to copy something like:
 
 ```bash
-npm run dev      # watch mode (development build)
-npm run build    # production build with type check
-npm run version  # bump version in manifest.json and versions.json
+bru run path/to/request.bru --env dev
 ```
 
-**Stack:** TypeScript, esbuild, CodeMirror 6, Obsidian Plugin API
-
-## Releasing
-
-Releases are automated via GitHub Actions. When a version tag is pushed, the workflow builds the plugin and creates a draft GitHub release with `main.js` and `manifest.json` attached.
-
-**Tag format:** The GitHub release tag must match `manifest.json` `version` exactly (e.g. `0.3.4`, not `v0.3.4`). Obsidian installs assets from the release with that tag. This repo sets `tag-version-prefix=` in `.npmrc` so `npm version` creates the correct tags.
-
-### Steps
-
-1. Bump the version (updates `package.json`, `manifest.json`, and `versions.json`, then commits and tags):
-   ```bash
-   npm version 0.3.6
-   # creates tag 0.3.6 (no "v" prefix; must match manifest.json version)
-   ```
-
-2. Push the commit and tag:
-   ```bash
-   git push origin main --tags
-   ```
-
-3. Go to the **Releases** tab on GitHub, edit the draft, add release notes, and publish.
-
-### First-time setup
-
-Enable write permissions for GitHub Actions: **Settings → Actions → General → Workflow permissions → Read and write permissions**.
+Run that in a terminal where you use the [Bruno CLI](https://www.usebruno.com/) outside Obsidian.
 
 ## License
 
