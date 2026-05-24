@@ -26,7 +26,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           tag="${GITHUB_REF#refs/tags/}"
-          assets=(main.js manifest.json)
+          assets=(main.js mermaid.bundle.js manifest.json)
           # styles.css is optional per Obsidian docs; attach only if present
           if [ -f styles.css ]; then
             assets+=(styles.css)

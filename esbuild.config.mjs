@@ -10,39 +10,80 @@ if you want to view the source, please visit the github repository of this plugi
 
 const prod = process.argv[2] === "production";
 
-const context = await esbuild.context({
-	banner: {
-		js: banner,
+const externals = [
+	"obsidian",
+	"electron",
+	"@codemirror/autocomplete",
+	"@codemirror/collab",
+	"@codemirror/commands",
+	"@codemirror/language",
+	"@codemirror/lint",
+	"@codemirror/search",
+	"@codemirror/state",
+	"@codemirror/view",
+	"@lezer/common",
+	"@lezer/highlight",
+	"@lezer/lr",
+	"./mermaid.bundle.js",
+	...builtinModules,
+];
+
+/** Brunet only uses flowchart diagrams — stub unused mermaid diagram types and heavy deps. */
+const mermaidTrimPlugin = {
+	name: "mermaid-flowchart-only",
+	setup(build) {
+		const diagramStub = { contents: "export const diagram = {};", loader: "js" };
+		build.onLoad(
+			{
+				filter:
+					/node_modules\/mermaid\/dist\/chunks\/mermaid\.core\/(?:c4|sequence|gantt|block|class|state|er|mindmap|timeline|journey|quadrant|requirement|sankey|venn|xychart|kanban|architecture|gitGraph|pie|info|eventmodeling|wardley|ishikawa)/i,
+			},
+			() => diagramStub,
+		);
+		build.onLoad({ filter: /node_modules\/katex\// }, () => ({
+			contents: "export default {};",
+			loader: "js",
+		}));
+		build.onLoad({ filter: /node_modules\/cytoscape(-|$)/ }, () => ({
+			contents: "export default {};",
+			loader: "js",
+		}));
 	},
-	entryPoints: ["src/main.ts"],
-	bundle: true,
-	external: [
-		"obsidian",
-		"electron",
-		"@codemirror/autocomplete",
-		"@codemirror/collab",
-		"@codemirror/commands",
-		"@codemirror/language",
-		"@codemirror/lint",
-		"@codemirror/search",
-		"@codemirror/state",
-		"@codemirror/view",
-		"@lezer/common",
-		"@lezer/highlight",
-		"@lezer/lr",
-		...builtinModules,
-	],
+};
+
+const shared = {
+	banner: { js: banner },
 	format: "cjs",
 	target: "es2018",
 	logLevel: "info",
-	sourcemap: prod ? false : "inline",
+	bundle: true,
 	treeShaking: true,
+};
+
+const mainContext = await esbuild.context({
+	...shared,
+	entryPoints: ["src/main.ts"],
+	external: externals,
+	sourcemap: prod ? false : "inline",
 	outfile: "main.js",
 });
 
+const mermaidContext = await esbuild.context({
+	...shared,
+	entryPoints: ["src/mermaid.bundle.ts"],
+	external: externals.filter((e) => e !== "./mermaid.bundle.js"),
+	plugins: [mermaidTrimPlugin],
+	outfile: "mermaid.bundle.js",
+});
+
+async function rebuildAll() {
+	await Promise.all([mainContext.rebuild(), mermaidContext.rebuild()]);
+}
+
 if (prod) {
-	await context.rebuild();
+	await rebuildAll();
 	process.exit(0);
 } else {
-	await context.watch();
+	await rebuildAll();
+	await Promise.all([mainContext.watch(), mermaidContext.watch()]);
 }

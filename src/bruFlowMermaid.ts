@@ -13,7 +13,6 @@
  *   s_page -->|done| s_done
  */
 
-import mermaid from "mermaid";
 import {
   createFlowStepId,
   describeFlowCondition,
@@ -147,7 +146,18 @@ export interface MermaidParseResult {
   errors: string[];
 }
 
+type MermaidApi = typeof import("./mermaid.bundle.js").default;
+
 let mermaidReady = false;
+let mermaidLoad: Promise<MermaidApi> | null = null;
+
+/** Loaded from mermaid.bundle.js beside main.js (see esbuild.config.mjs). */
+async function getMermaid(): Promise<MermaidApi> {
+	if (!mermaidLoad) {
+		mermaidLoad = import("./mermaid.bundle.js").then((mod) => mod.default);
+	}
+	return mermaidLoad;
+}
 
 function escapeMermaidLabel(text: string): string {
   return text.replace(/"/g, "#quot;");
@@ -546,12 +556,14 @@ export async function renderMermaidDiagram(
   parent: HTMLElement,
   source: string,
 ): Promise<void> {
+  const mermaid = await getMermaid();
+
   if (!mermaidReady) {
     mermaid.initialize({
       startOnLoad: false,
       theme: isDarkTheme() ? "dark" : "default",
       securityLevel: "loose",
-      flowchart: { htmlLabels: true, curve: "basis" },
+      flowchart: { htmlLabels: false, curve: "basis" },
     });
     mermaidReady = true;
   }
