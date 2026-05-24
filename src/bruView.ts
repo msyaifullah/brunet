@@ -8,16 +8,45 @@
  *  - A button to copy the `bru run <filename>` command
  */
 
-import { Plugin, TextFileView, WorkspaceLeaf, Notice, TFile, setIcon } from "obsidian";
+import { TextFileView, WorkspaceLeaf, Notice, TFile, setIcon } from "obsidian";
+import type BrunetPlugin from "./main";
 import {
   parseBruFile,
   serializeBruFile,
+  getBruBodyContent,
+  getBruBodyType,
   BruFile,
   BruKeyValue,
   getMethodColor,
+  isFormBodyType,
+  parseFormBodyContent,
+  serializeFormBodyContent,
+  BRU_HTTP_METHODS,
+  normalizeBruHttpMethod,
 } from "./bruParser";
-import { parseBruYml, isBrunoYml } from "./bruYmlParser";
+import {
+  parseBruYml,
+  isBrunoYml,
+  isOpenCollectionYml,
+  parseManifestYml,
+  isRunnableBrunoYml,
+  isFolderManifestYmlFile,
+  isCollectionManifestYmlFile,
+  updateYmlFromParsed,
+} from "./bruYmlParser";
+import { parseBrunoJson, isBrunoJsonFile, BrunoJsonManifest } from "./bruJsonParser";
 import { runBruRequest, BruResponse, BruRunResult, BruRequestSnapshot } from "./bruRunner";
+import {
+  formatBruRunCommand,
+  isBruManifest,
+  isCollectionManifestFile,
+  isEnvironmentFile,
+  isAnyFolderManifestFile,
+  isAnyCollectionManifestFile,
+  loadCollectionVars,
+} from "./bruCollection";
+import { mountEnvironmentTab as mountEnvironmentTabContent } from "./bruEnvironmentTab";
+import { renderEditableKeyValueTable } from "./bruKeyValueEditor";
 import {
   normalizeParsedUrl,
   buildDisplayUrl,
@@ -32,6 +61,7 @@ import {
   inferBodyTypeFromHeaders,
   normalizeBodyType,
   BODY_TYPE_OPTIONS,
+  bodyTypeSelectLabel,
   type BodyEditorHandle,
 } from "./bruBodyEditor";
 
@@ -85,7 +115,7 @@ export const BRU_VIEW_LEAF_STYLES = `
   }
 `;
 
-export function registerBruViewLeafStyles(plugin: Plugin): void {
+export function registerBruViewLeafStyles(plugin: BrunetPlugin): void {
   const style = document.createElement("style");
   style.id = "brunet-bru-view-leaf";
   style.textContent = BRU_VIEW_LEAF_STYLES;
@@ -97,6 +127,8 @@ export class BruFileView extends TextFileView {
   private contentDiv: HTMLDivElement;
   private parsed: BruFile | null = null;
   private isYml = false;
+  private isBrunoJson = false;
+  private brunoJsonManifest: BrunoJsonManifest | null = null;
   private saveTimer: number | null = null;
   private tabNav: HTMLElement | null = null;
   private tabHolder: HTMLElement | null = null;
@@ -106,8 +138,14 @@ export class BruFileView extends TextFileView {
   private consoleEditors: BodyEditorHandle[] = [];
   private lastConsole: BruRunResult | null = null;
   private consoleLoading = false;
+  private collectionVars: Record<string, string> = {};
+  private unregisterEnvListener?: () => void;
+  private envPanel: HTMLElement | null = null;
 
-  constructor(leaf: WorkspaceLeaf) {
+  constructor(
+    leaf: WorkspaceLeaf,
+    private plugin: BrunetPlugin,
+  ) {
     super(leaf);
     this.applyFullWidthLayout();
     this.contentDiv = this.contentEl.createDiv({ cls: "bru-view-root" });
@@ -115,6 +153,16 @@ export class BruFileView extends TextFileView {
 
   async onOpen(): Promise<void> {
     this.applyFullWidthLayout();
+    this.unregisterEnvListener = this.plugin.onEnvironmentChange(() => {
+      void this.refreshCollectionVarsCache();
+      if (this.envPanel) {
+        void this.mountEnvironmentTab(this.envPanel);
+      }
+    });
+  }
+
+  async onClose(): Promise<void> {
+    this.unregisterEnvListener?.();
   }
 
   /** Obsidian constrains .view-content via --file-line-width; override on the leaf. */
@@ -170,6 +218,7 @@ export class BruFileView extends TextFileView {
   private render(): void {
     this.destroyBodyEditor();
     this.destroyConsoleEditors();
+    this.envPanel = null;
     this.contentDiv.empty();
 
     if (!this.data) {
@@ -180,21 +229,97 @@ export class BruFileView extends TextFileView {
       return;
     }
 
-    this.isYml = isBrunoYml(this.data);
-    this.parsed = this.isYml
-      ? parseBruYml(this.data)
-      : parseBruFile(this.data);
+    this.isBrunoJson = !!this.file && isBrunoJsonFile(this.file);
+    const isYamlExt =
+      this.file?.extension === "yml" || this.file?.extension === "yaml";
+    this.isYml =
+      !this.isBrunoJson &&
+      isYamlExt &&
+      (isBrunoYml(this.data) ||
+        (!!this.file &&
+          (isFolderManifestYmlFile(this.file) ||
+            isCollectionManifestYmlFile(this.file))));
+
+    if (this.isBrunoJson) {
+      this.brunoJsonManifest = parseBrunoJson(this.data);
+      this.parsed = this.createManifestShell(this.data);
+    } else {
+      this.brunoJsonManifest = null;
+      this.parsed = this.isYml
+        ? parseBruYml(this.data)
+        : parseBruFile(this.data);
+    }
     const parsed = this.parsed;
     const filename = this.file?.path ?? "request.bru";
-    const editable = !this.isYml;
+    const manifestKind = this.resolveManifestKind(parsed);
+    const isManifest = manifestKind !== null;
+    const editable = !this.isBrunoJson && !isManifest;
 
     if (editable) {
       normalizeParsedUrl(parsed);
     }
 
     this.renderStyles();
-    this.renderHeader(parsed, filename, editable);
-    this.renderRequestTabs(parsed, editable);
+    this.renderHeader(parsed, filename, editable, manifestKind);
+    if (isManifest) {
+      this.renderManifestPanel(parsed, manifestKind);
+    } else {
+      this.renderRequestTabs(parsed, editable);
+      void this.refreshCollectionVarsCache();
+    }
+  }
+
+  private createManifestShell(raw: string): BruFile {
+    return {
+      meta: { name: "", type: "", seq: 0 },
+      request: { method: "", url: "", body: "none", auth: "none" },
+      headers: [],
+      query: [],
+      path: [],
+      body: "",
+      bodyType: "",
+      vars: [],
+      varsPreRequest: [],
+      varsPostResponse: [],
+      scriptPreRequest: "",
+      scriptPostResponse: "",
+      assertions: [],
+      docs: "",
+      raw,
+    };
+  }
+
+  private resolveManifestKind(
+    parsed: BruFile,
+  ): "folder" | "collection" | "environment" | null {
+    if (this.isBrunoJson && this.brunoJsonManifest) return "collection";
+
+    if (this.isYml) {
+      const ymlManifest = parseManifestYml(this.data);
+      if (ymlManifest?.type === "folder") return "folder";
+      if (
+        ymlManifest?.type === "collection" ||
+        isOpenCollectionYml(this.data)
+      ) {
+        return "collection";
+      }
+    }
+
+    if (!this.file) return null;
+
+    if (isEnvironmentFile(this.file)) return "environment";
+    if (isAnyFolderManifestFile(this.file) || parsed.meta.type === "folder") {
+      return "folder";
+    }
+    if (
+      isAnyCollectionManifestFile(this.file) ||
+      parsed.meta.type === "collection"
+    ) {
+      return "collection";
+    }
+    if (isBruManifest(parsed, this.file)) return "collection";
+
+    return null;
   }
 
   private renderStyles(): void {
@@ -222,14 +347,14 @@ export class BruFileView extends TextFileView {
       .bru-header {
         display: flex;
         align-items: center;
-        gap: 1em;
+        gap: 0.75em;
         margin-bottom: 1.5em;
         flex-shrink: 0;
         padding: 1em 1.25em;
         background: var(--background-secondary);
         border-radius: 8px;
         border-left: 4px solid var(--bru-method-color, #61affe);
-        flex-wrap: wrap;
+        flex-wrap: nowrap;
       }
       .bru-method-badge {
         font-size: 0.85em;
@@ -241,6 +366,31 @@ export class BruFileView extends TextFileView {
         color: #fff;
         font-family: var(--font-monospace);
         flex-shrink: 0;
+      }
+      .bru-method-select {
+        font-size: 0.85em;
+        font-weight: 700;
+        letter-spacing: 0.05em;
+        padding: 0.25em 1.75em 0.25em 0.65em;
+        border-radius: 4px;
+        border: none;
+        background: var(--bru-method-color, #61affe);
+        color: #fff;
+        font-family: var(--font-monospace);
+        flex-shrink: 0;
+        cursor: pointer;
+        appearance: none;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: right 0.45em center;
+      }
+      .bru-method-select:focus {
+        outline: 2px solid var(--interactive-accent);
+        outline-offset: 1px;
+      }
+      .bru-method-select option {
+        background: var(--background-primary);
+        color: var(--text-normal);
       }
       .bru-url {
         font-family: var(--font-monospace);
@@ -309,10 +459,27 @@ export class BruFileView extends TextFileView {
         background: var(--background-primary);
         color: var(--text-normal);
       }
+      .bru-body-type-readonly {
+        font-size: var(--font-ui-small);
+        font-weight: var(--font-medium);
+        color: var(--text-normal);
+      }
+      .bru-env-tab-toolbar {
+        display: flex;
+        align-items: center;
+        margin-bottom: var(--size-4-3);
+        flex-shrink: 0;
+      }
+      .bru-env-tab-vars {
+        flex: 1;
+        min-height: 0;
+      }
       .bru-body-toolbar-actions {
         display: flex;
         align-items: center;
-        gap: var(--size-2-1);
+        gap: var(--size-2-2);
+        margin-left: auto;
+        flex-shrink: 0;
       }
       .bru-body-toolbar-btn {
         display: inline-flex;
@@ -331,11 +498,6 @@ export class BruFileView extends TextFileView {
       .bru-body-toolbar-btn svg {
         width: var(--icon-m);
         height: var(--icon-m);
-      }
-      .bru-body-fold-hint {
-        margin-left: auto;
-        font-size: var(--font-ui-smaller);
-        color: var(--text-faint);
       }
       .bru-body-cm-mount {
         flex: 1;
@@ -361,12 +523,15 @@ export class BruFileView extends TextFileView {
         gap: var(--size-2-2);
         margin-top: var(--size-4-2);
       }
-      .bru-kv-table-editable td:first-child {
+      .bru-kv-table-editable td.bru-kv-enabled-cell {
         width: 2em;
       }
-      .bru-kv-table-editable td:last-child {
+      .bru-kv-table-editable td.bru-kv-action-cell {
         width: 2.5em;
         text-align: center;
+      }
+      .bru-kv-table-editable.bru-kv-table-no-enabled .bru-key {
+        width: 40%;
       }
       .bru-kv-remove {
         display: inline-flex;
@@ -505,6 +670,73 @@ export class BruFileView extends TextFileView {
       }
       .bru-more-sections details.bru-section {
         margin-bottom: 0.5em;
+      }
+      .bru-manifest-hint {
+        flex-basis: 100%;
+        margin: 0.35em 0 0;
+        font-size: 0.82em;
+        color: var(--text-muted);
+        line-height: 1.4;
+      }
+      .bru-manifest-panel {
+        margin-top: var(--size-4-4);
+        padding: var(--size-4-5);
+        border: 1px solid var(--background-modifier-border);
+        border-radius: var(--radius-m);
+        background: var(--background-secondary);
+      }
+      .bru-manifest-title {
+        margin: 0 0 0.35em;
+        font-size: 1.15em;
+        font-weight: var(--font-semibold);
+        color: var(--text-normal);
+      }
+      .bru-manifest-desc {
+        margin: 0 0 1em;
+        color: var(--text-muted);
+        font-size: var(--font-ui-small);
+        line-height: 1.5;
+      }
+      .bru-manifest-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: var(--font-ui-small);
+      }
+      .bru-manifest-table th {
+        text-align: left;
+        width: 7em;
+        padding: 0.45em 0.75em 0.45em 0;
+        color: var(--text-muted);
+        font-weight: var(--font-medium);
+        vertical-align: top;
+      }
+      .bru-manifest-table td {
+        padding: 0.45em 0;
+        color: var(--text-normal);
+        word-break: break-word;
+      }
+      .bru-manifest-subsection {
+        margin-top: 1.25em;
+        padding-top: 1em;
+        border-top: 1px solid var(--background-modifier-border);
+      }
+      .bru-manifest-subtitle {
+        margin: 0 0 0.65em;
+        font-size: var(--font-ui-small);
+        font-weight: var(--font-semibold);
+        color: var(--text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+      }
+      .bru-manifest-list {
+        margin: 0;
+        padding-left: 1.25em;
+        font-size: var(--font-ui-small);
+        color: var(--text-normal);
+      }
+      .bru-manifest-docs {
+        white-space: pre-wrap;
+        font-size: var(--font-ui-small);
       }
       .bru-header-actions {
         display: flex;
@@ -754,10 +986,45 @@ export class BruFileView extends TextFileView {
     return this.parsed ?? parseBruFile(this.data);
   }
 
+  private async mountEnvironmentTab(panel: HTMLElement): Promise<void> {
+    if (!this.file) return;
+    await mountEnvironmentTabContent({
+      panel,
+      vault: this.app.vault,
+      plugin: this.plugin,
+      requestFile: this.file,
+      onVarsUpdated: () => void this.refreshCollectionVarsCache(),
+    });
+  }
+
+  private async refreshCollectionVarsCache(): Promise<void> {
+    if (!this.file) {
+      this.collectionVars = {};
+      return;
+    }
+    this.collectionVars = await loadCollectionVars(
+      this.app.vault,
+      this.file,
+      this.plugin.settings.activeEnvironment,
+    );
+    this.syncUrlFromParams();
+  }
+
+  private async runWithCollectionVars(): Promise<BruRunResult> {
+    await this.refreshCollectionVarsCache();
+    return runBruRequest(this.getParsedForRequest(), {
+      collectionVars: this.collectionVars,
+    });
+  }
+
   private scheduleCommit(): void {
     if (this.saveTimer !== null) window.clearTimeout(this.saveTimer);
     this.saveTimer = window.setTimeout(() => {
-      this.commitEdits();
+      if (this.isYml) {
+        this.commitYmlFileEdits();
+      } else {
+        this.commitEdits();
+      }
       this.saveTimer = null;
     }, 400);
   }
@@ -768,6 +1035,16 @@ export class BruFileView extends TextFileView {
     const newRaw = serializeBruFile(this.parsed);
     if (newRaw === this.data) return;
 
+    this.data = newRaw;
+    this.parsed.raw = newRaw;
+    this.updateRawPreview();
+    this.requestSave();
+  }
+
+  private commitYmlFileEdits(): void {
+    if (!this.parsed || !this.isYml) return;
+    const newRaw = updateYmlFromParsed(this.data, this.parsed);
+    if (newRaw === this.data) return;
     this.data = newRaw;
     this.parsed.raw = newRaw;
     this.updateRawPreview();
@@ -879,8 +1156,8 @@ export class BruFileView extends TextFileView {
   }
 
   private syncUrlFromParams(): void {
-    if (!this.urlInput || !this.parsed || this.isYml) return;
-    this.urlInput.value = buildDisplayUrl(this.parsed);
+    if (!this.urlInput || !this.parsed) return;
+    this.urlInput.value = buildDisplayUrl(this.parsed, this.collectionVars);
   }
 
   private onParamFieldChange(): void {
@@ -888,20 +1165,170 @@ export class BruFileView extends TextFileView {
     this.scheduleCommit();
   }
 
-  private renderHeader(parsed: BruFile, filename: string, editable: boolean): void {
-    const method = parsed.request.method || "UNKNOWN";
+  private renderManifestPanel(
+    parsed: BruFile,
+    kind: "folder" | "collection" | "environment",
+  ): void {
+    const panel = this.contentDiv.createDiv({ cls: "bru-manifest-panel" });
+
+    const ymlManifest = this.isYml ? parseManifestYml(this.data) : null;
+    const jsonManifest = this.brunoJsonManifest;
+    const name =
+      jsonManifest?.name ||
+      ymlManifest?.name ||
+      parsed.meta.name ||
+      (kind === "collection"
+        ? "Collection"
+        : kind === "environment"
+          ? "Environment"
+          : "Folder");
+    const seq = ymlManifest?.seq ?? parsed.meta.seq;
+    const authType =
+      ymlManifest?.authType ||
+      (parsed.request.auth && parsed.request.auth !== "none"
+        ? parsed.request.auth
+        : "");
+
+    panel.createEl("h2", { text: name, cls: "bru-manifest-title" });
+
+    const descriptions: Record<typeof kind, string> = {
+      folder:
+        "Folder configuration for requests in this directory. Shared auth and variables apply to child requests — this file is not sent as an HTTP request.",
+      collection:
+        "Collection root configuration (like bruno.json or collection.bru). Auth, variables, and docs here apply to all requests in this collection — this is not an HTTP request.",
+      environment:
+        "Environment variables used when an environment is selected for requests in this collection.",
+    };
+    panel.createEl("p", { text: descriptions[kind], cls: "bru-manifest-desc" });
+
+    const table = panel.createEl("table", { cls: "bru-manifest-table" });
+    const rows: [string, string][] = [
+      ["Type", kind.charAt(0).toUpperCase() + kind.slice(1)],
+    ];
+
+    if (jsonManifest?.version) rows.push(["Version", jsonManifest.version]);
+    if (ymlManifest?.openCollectionVersion) {
+      rows.push(["OpenCollection", ymlManifest.openCollectionVersion]);
+    }
+    if (ymlManifest?.bundled !== undefined) {
+      rows.push(["Bundled", ymlManifest.bundled ? "true" : "false"]);
+    }
+    if (seq) rows.push(["Sequence", String(seq)]);
+    if (authType) rows.push(["Auth", authType]);
+
+    const vars = [...parsed.varsPreRequest, ...parsed.vars].filter(
+      (entry) => entry.enabled && entry.key.trim(),
+    );
+    if (vars.length > 0) rows.push(["Variables", String(vars.length)]);
+
+    const ignore =
+      jsonManifest?.ignore ??
+      ymlManifest?.ignore ??
+      [];
+    if (ignore.length > 0) rows.push(["Ignored paths", String(ignore.length)]);
+
+    for (const [key, value] of rows) {
+      const tr = table.createEl("tr");
+      tr.createEl("th", { text: key });
+      tr.createEl("td", { text: value });
+    }
+
+    if (ignore.length > 0) {
+      const ignoreSection = panel.createDiv({ cls: "bru-manifest-subsection" });
+      ignoreSection.createEl("h3", {
+        text: "Ignored paths",
+        cls: "bru-manifest-subtitle",
+      });
+      const list = ignoreSection.createEl("ul", { cls: "bru-manifest-list" });
+      for (const item of ignore) {
+        list.createEl("li", { text: item });
+      }
+    }
+
+    if (vars.length > 0) {
+      const varsSection = panel.createDiv({ cls: "bru-manifest-subsection" });
+      varsSection.createEl("h3", {
+        text: "Variables",
+        cls: "bru-manifest-subtitle",
+      });
+      const varsTable = varsSection.createEl("table", { cls: "bru-kv-table" });
+      for (const entry of vars) {
+        const tr = varsTable.createEl("tr");
+        tr.createEl("td", { text: entry.key, cls: "bru-key" });
+        const valueTd = tr.createEl("td", { cls: "bru-value" });
+        this.renderValueWithVars(valueTd, entry.value);
+      }
+    }
+
+    if (parsed.docs.trim()) {
+      const docsSection = panel.createDiv({ cls: "bru-manifest-subsection" });
+      docsSection.createEl("h3", { text: "Docs", cls: "bru-manifest-subtitle" });
+      const docsBlock = docsSection.createDiv({ cls: "bru-code-block bru-manifest-docs" });
+      docsBlock.setText(parsed.docs.trim());
+    }
+  }
+
+  private renderHeader(
+    parsed: BruFile,
+    filename: string,
+    editable: boolean,
+    manifestKind: "folder" | "collection" | "environment" | null,
+  ): void {
+    const isManifest = manifestKind !== null;
+    const method = isManifest
+      ? (manifestKind ?? "config").toUpperCase()
+      : normalizeBruHttpMethod(parsed.request.method);
     const url = parsed.request.url || "";
-    const color = getMethodColor(method);
+    const color = isManifest ? "#888" : getMethodColor(method);
 
     const header = this.contentDiv.createDiv({ cls: "bru-header" });
     header.style.setProperty("--bru-method-color", color);
     header.style.setProperty("border-left-color", color);
 
-    const badge = header.createEl("span", {
-      text: method,
-      cls: "bru-method-badge",
-    });
-    badge.style.background = color;
+    const applyMethodColor = (nextMethod: string) => {
+      const nextColor = getMethodColor(nextMethod);
+      header.style.setProperty("--bru-method-color", nextColor);
+      header.style.setProperty("border-left-color", nextColor);
+      if (methodSelect) {
+        methodSelect.style.backgroundColor = nextColor;
+      }
+    };
+
+    let methodSelect: HTMLSelectElement | null = null;
+
+    if (editable && !isManifest) {
+      methodSelect = header.createEl("select", { cls: "bru-method-select" });
+      methodSelect.style.backgroundColor = color;
+      for (const option of BRU_HTTP_METHODS) {
+        const opt = methodSelect.createEl("option", { text: option, value: option });
+        if (option === method) opt.selected = true;
+      }
+      methodSelect.addEventListener("change", () => {
+        parsed.request.method = normalizeBruHttpMethod(methodSelect!.value);
+        applyMethodColor(parsed.request.method);
+        this.scheduleCommit();
+      });
+    } else {
+      const badge = header.createEl("span", {
+        text: method,
+        cls: "bru-method-badge",
+      });
+      badge.style.background = color;
+    }
+
+    if (isManifest) {
+      const ymlManifest = this.isYml ? parseManifestYml(this.data) : null;
+      const label =
+        this.brunoJsonManifest?.name ||
+        ymlManifest?.name ||
+        parsed.meta.name ||
+        (manifestKind === "collection" ? "Collection" : "Folder");
+      header.createEl("span", {
+        text: label,
+        cls: "bru-url",
+      });
+      return;
+    }
 
     if (editable) {
       const urlInput = header.createEl("input", {
@@ -930,11 +1357,14 @@ export class BruFileView extends TextFileView {
     });
     setIcon(copyBtn, "copy");
     copyBtn.addEventListener("click", () => {
-      const cmd = `bru run "${filename}"`;
+      const cmd = formatBruRunCommand(
+        filename,
+        this.plugin.settings.activeEnvironment,
+      );
       navigator.clipboard.writeText(cmd).then(() => {
         new Notice(`Copied: ${cmd}`);
       }).catch(() => {
-        new Notice(`bru run "${filename}"`);
+        new Notice(cmd);
       });
     });
 
@@ -950,7 +1380,7 @@ export class BruFileView extends TextFileView {
         this.switchTab(this.tabNav, this.tabHolder, "console");
       }
 
-      runBruRequest(this.getParsedForRequest()).then((result) => {
+      this.runWithCollectionVars().then((result) => {
         this.lastConsole = result;
         this.consoleLoading = false;
         this.refreshConsole();
@@ -1148,6 +1578,10 @@ export class BruFileView extends TextFileView {
       headersPanel.createEl("p", { text: "No headers.", cls: "bru-tab-empty" });
     }
 
+    const envPanel = this.createTab(tabNav, holder, "environment", "Environment");
+    this.envPanel = envPanel;
+    void this.mountEnvironmentTab(envPanel);
+
     const bodyPanel = this.createTab(tabNav, holder, "body", bodyLabel);
     bodyPanel.addClass("brunet-tab-panel-body");
     this.renderBodyInto(bodyPanel, parsed, editable);
@@ -1312,7 +1746,7 @@ export class BruFileView extends TextFileView {
     const table = body.createEl("table", { cls: "bru-kv-table" });
 
     const rows: [string, string][] = [];
-    if (parsed.request.body) rows.push(["body", parsed.request.body]);
+    if (parsed.request.body) rows.push(["body mode", parsed.request.body]);
     if (parsed.request.auth) rows.push(["auth", parsed.request.auth]);
 
     for (const [k, v] of rows) {
@@ -1341,89 +1775,19 @@ export class BruFileView extends TextFileView {
       addAriaLabel: string;
       removeLabel: string;
       reflectInUrl?: boolean;
+      showEnabledColumn?: boolean;
     },
   ): void {
     const onFieldChange = opts.reflectInUrl
       ? () => this.onParamFieldChange()
       : () => this.scheduleCommit();
-    const table = container.createEl("table", {
-      cls: "bru-kv-table bru-kv-table-editable",
-    });
-
-    const renderRows = () => {
-      table.empty();
-      if (!entries.length) {
-        entries.push({ key: "", value: "", enabled: true });
-      }
-
-      entries.forEach((entry, index) => {
-        const tr = table.createEl("tr");
-        if (!entry.enabled) tr.addClass("bru-disabled");
-
-        const enabledTd = tr.createEl("td");
-        const enabledCb = enabledTd.createEl("input", {
-          type: "checkbox",
-          cls: "bru-kv-enabled",
-        });
-        enabledCb.checked = entry.enabled;
-        enabledCb.addEventListener("change", () => {
-          entry.enabled = enabledCb.checked;
-          tr.toggleClass("bru-disabled", !entry.enabled);
-          onFieldChange();
-        });
-
-        const keyTd = tr.createEl("td", { cls: "bru-key" });
-        const keyInput = keyTd.createEl("input", {
-          type: "text",
-          cls: "bru-field-input",
-          attr: { placeholder: opts.keyPlaceholder },
-        });
-        keyInput.value = entry.key;
-        keyInput.addEventListener("input", () => {
-          entry.key = keyInput.value;
-          onFieldChange();
-        });
-
-        const valueTd = tr.createEl("td", { cls: "bru-value" });
-        const valueInput = valueTd.createEl("input", {
-          type: "text",
-          cls: "bru-field-input",
-          attr: { placeholder: opts.valuePlaceholder },
-        });
-        valueInput.value = entry.value;
-        valueInput.addEventListener("input", () => {
-          entry.value = valueInput.value;
-          onFieldChange();
-        });
-
-        const actionTd = tr.createEl("td");
-        const removeBtn = actionTd.createEl("button", {
-          cls: "clickable-icon bru-kv-remove",
-          attr: { "aria-label": opts.removeLabel },
-        });
-        setIcon(removeBtn, "trash-2");
-        removeBtn.addEventListener("click", () => {
-          entries.splice(index, 1);
-          renderRows();
-          onFieldChange();
-        });
-      });
-    };
-
-    renderRows();
-
-    const actions = container.createDiv({ cls: "bru-kv-actions" });
-    const addBtn = actions.createEl("button", {
-      cls: "clickable-icon bru-kv-add",
-      attr: { "aria-label": opts.addAriaLabel },
-    });
-    setIcon(addBtn, "plus");
-    addBtn.addEventListener("click", () => {
-      entries.push({ key: "", value: "", enabled: true });
-      renderRows();
-      onFieldChange();
-      const inputs = table.querySelectorAll<HTMLInputElement>(".bru-field-input");
-      inputs[inputs.length - 2]?.focus();
+    renderEditableKeyValueTable(container, entries, {
+      keyPlaceholder: opts.keyPlaceholder,
+      valuePlaceholder: opts.valuePlaceholder,
+      addAriaLabel: opts.addAriaLabel,
+      removeLabel: opts.removeLabel,
+      showEnabledColumn: opts.showEnabledColumn,
+      onChange: onFieldChange,
     });
   }
 
@@ -1457,117 +1821,196 @@ export class BruFileView extends TextFileView {
     parsed: BruFile,
     editable: boolean,
   ): void {
-    if (!editable && !parsed.body.trim()) {
-      container.createEl("p", { text: "No body.", cls: "bru-tab-empty" });
+    const bodyContent = getBruBodyContent(parsed);
+    const resolvedType = normalizeBodyType(
+      getBruBodyType(parsed) || inferBodyType(bodyContent),
+    );
+    parsed.bodyType = resolvedType;
+
+    if (!editable) {
+      if (!bodyContent.trim()) {
+        container.createEl("p", { text: "No body.", cls: "bru-tab-empty" });
+        return;
+      }
+      if (isFormBodyType(resolvedType)) {
+        const entries = parseFormBodyContent(bodyContent);
+        if (entries.length) {
+          this.renderKeyValueTable(container, entries);
+        } else {
+          container.createEl("p", { text: "No body.", cls: "bru-tab-empty" });
+        }
+        return;
+      }
+      const code = container.createDiv({ cls: "bru-code-block" });
+      this.renderValueWithVars(code, bodyContent.trim());
       return;
     }
 
-    if (editable) {
-      container.empty();
-      container.addClass("bru-body-tab-content");
-
-      if (!parsed.bodyType) {
-        parsed.bodyType = inferBodyType(parsed.body);
-      }
-
-      const toolbar = container.createDiv({ cls: "bru-body-editor-toolbar" });
-      const typeWrap = toolbar.createDiv({ cls: "bru-body-type-wrap" });
-      typeWrap.createSpan({ text: "Type", cls: "bru-body-type-label" });
-
-      const typeSelect = typeWrap.createEl("select", { cls: "bru-body-type-select" });
-      for (const option of BODY_TYPE_OPTIONS) {
-        const opt = typeSelect.createEl("option", {
-          text: option.toUpperCase(),
-          value: option,
-        });
-        if (option === normalizeBodyType(parsed.bodyType)) {
-          opt.selected = true;
-        }
-      }
-
-      const toolbarActions = toolbar.createDiv({ cls: "bru-body-toolbar-actions" });
-
-      const prettifyBtn = this.createBodyToolbarIconBtn(
-        toolbarActions,
-        "code-2",
-        "Prettify",
-      );
-      const collapseAllBtn = this.createBodyToolbarIconBtn(
-        toolbarActions,
-        "fold-vertical",
-        "Collapse all",
-      );
-      const expandAllBtn = this.createBodyToolbarIconBtn(
-        toolbarActions,
-        "unfold-vertical",
-        "Expand all",
-      );
-
-      const foldHint = toolbar.createSpan({
-        text: "Click ▸ in the gutter to fold blocks",
-        cls: "bru-body-fold-hint",
-      });
-
-      const editorHost = container.createDiv({ cls: "bru-body-editor-host" });
-
-      const syncToolbarForBodyType = (bodyType: string) => {
-        const structured = canPrettifyBody(bodyType);
-        prettifyBtn.hidden = !structured;
-        collapseAllBtn.hidden = !canFoldBody(bodyType);
-        expandAllBtn.hidden = !canFoldBody(bodyType);
-        foldHint.hidden = !canFoldBody(bodyType);
-      };
-
-      const mountEditor = () => {
-        this.destroyBodyEditor();
-        editorHost.empty();
-        const bodyType = normalizeBodyType(parsed.bodyType);
-        syncToolbarForBodyType(bodyType);
-        this.bodyEditor = createBodyEditor(
-          editorHost,
-          parsed.body,
-          bodyType,
-          (value) => {
-            parsed.body = value;
-            this.scheduleCommit();
-          },
-        );
-      };
-
-      syncToolbarForBodyType(parsed.bodyType);
-      mountEditor();
-
-      typeSelect.addEventListener("change", () => {
-        parsed.bodyType = normalizeBodyType(typeSelect.value);
-        mountEditor();
-        this.scheduleCommit();
-      });
-
-      prettifyBtn.addEventListener("click", () => {
-        if (!this.bodyEditor || !this.parsed) return;
-        const bodyType = normalizeBodyType(this.parsed.bodyType);
-        try {
-          const formatted = prettifyBody(this.bodyEditor.getValue(), bodyType);
-          this.bodyEditor.setValue(formatted);
-          this.parsed.body = formatted;
-          this.scheduleCommit();
-        } catch (err: unknown) {
-          const msg = err instanceof Error ? err.message : String(err);
-          new Notice(`Prettify failed: ${msg}`);
-        }
-      });
-
-      collapseAllBtn.addEventListener("click", () => {
-        this.bodyEditor?.foldAll();
-      });
-
-      expandAllBtn.addEventListener("click", () => {
-        this.bodyEditor?.unfoldAll();
-      });
-    } else {
-      const code = container.createDiv({ cls: "bru-code-block" });
-      this.renderValueWithVars(code, parsed.body.trim());
+    if (isFormBodyType(resolvedType)) {
+      this.renderFormBodyEditor(container, parsed, bodyContent);
+      return;
     }
+
+    container.empty();
+    container.addClass("bru-body-tab-content");
+
+    const toolbar = container.createDiv({ cls: "bru-body-editor-toolbar" });
+    const typeWrap = toolbar.createDiv({ cls: "bru-body-type-wrap" });
+    typeWrap.createSpan({ text: "Type", cls: "bru-body-type-label" });
+
+    let typeSelect: HTMLSelectElement;
+    typeSelect = typeWrap.createEl("select", { cls: "bru-body-type-select" });
+    for (const option of BODY_TYPE_OPTIONS) {
+      const opt = typeSelect.createEl("option", {
+        text: bodyTypeSelectLabel(option),
+        value: option,
+      });
+      if (option === normalizeBodyType(parsed.bodyType)) {
+        opt.selected = true;
+      }
+    }
+
+    const toolbarActions = toolbar.createDiv({ cls: "bru-body-toolbar-actions" });
+
+    const prettifyBtn = this.createBodyToolbarIconBtn(
+      toolbarActions,
+      "code-2",
+      "Prettify",
+    );
+    const collapseAllBtn = this.createBodyToolbarIconBtn(
+      toolbarActions,
+      "fold-vertical",
+      "Collapse all",
+    );
+    const expandAllBtn = this.createBodyToolbarIconBtn(
+      toolbarActions,
+      "unfold-vertical",
+      "Expand all",
+    );
+
+    const editorHost = container.createDiv({ cls: "bru-body-editor-host" });
+
+    const syncToolbarForBodyType = (bodyType: string) => {
+      const structured = canPrettifyBody(bodyType);
+      prettifyBtn.hidden = !structured;
+      collapseAllBtn.hidden = !canFoldBody(bodyType);
+      expandAllBtn.hidden = !canFoldBody(bodyType);
+    };
+
+    const mountEditor = () => {
+      this.destroyBodyEditor();
+      editorHost.empty();
+      const bodyType = normalizeBodyType(parsed.bodyType);
+      syncToolbarForBodyType(bodyType);
+      this.bodyEditor = createBodyEditor(
+        editorHost,
+        parsed.body || bodyContent,
+        bodyType,
+        (value) => {
+          parsed.body = value;
+          parsed.request.body = parsed.bodyType || "json";
+          this.scheduleCommit();
+        },
+      );
+    };
+
+    syncToolbarForBodyType(parsed.bodyType);
+    mountEditor();
+
+    typeSelect.addEventListener("change", () => {
+      const nextType = normalizeBodyType(typeSelect.value);
+      parsed.bodyType = nextType;
+      parsed.request.body = nextType;
+      if (isFormBodyType(nextType)) {
+        this.renderFormBodyEditor(container, parsed, parsed.body);
+        this.scheduleCommit();
+        return;
+      }
+      mountEditor();
+      this.scheduleCommit();
+    });
+
+    prettifyBtn.addEventListener("click", () => {
+      if (!this.bodyEditor || !this.parsed) return;
+      const bodyType = normalizeBodyType(this.parsed.bodyType);
+      try {
+        const formatted = prettifyBody(this.bodyEditor.getValue(), bodyType);
+        this.bodyEditor.setValue(formatted);
+        this.parsed.body = formatted;
+        this.scheduleCommit();
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        new Notice(`Prettify failed: ${msg}`);
+      }
+    });
+
+    collapseAllBtn.addEventListener("click", () => {
+      this.bodyEditor?.foldAll();
+    });
+
+    expandAllBtn.addEventListener("click", () => {
+      this.bodyEditor?.unfoldAll();
+    });
+  }
+
+  private renderFormBodyEditor(
+    container: HTMLElement,
+    parsed: BruFile,
+    bodyContent: string,
+  ): void {
+    this.destroyBodyEditor();
+    container.empty();
+    container.addClass("bru-body-tab-content");
+
+    const entries = parseFormBodyContent(bodyContent);
+    if (!entries.length) {
+      entries.push({ key: "", value: "", enabled: true });
+    }
+
+    const toolbar = container.createDiv({ cls: "bru-body-editor-toolbar" });
+    const typeWrap = toolbar.createDiv({ cls: "bru-body-type-wrap" });
+    typeWrap.createSpan({ text: "Type", cls: "bru-body-type-label" });
+
+    const typeSelect = typeWrap.createEl("select", { cls: "bru-body-type-select" });
+    for (const option of BODY_TYPE_OPTIONS) {
+      const opt = typeSelect.createEl("option", {
+        text: bodyTypeSelectLabel(option),
+        value: option,
+      });
+      if (option === normalizeBodyType(parsed.bodyType)) {
+        opt.selected = true;
+      }
+    }
+
+    const formHost = container.createDiv({ cls: "bru-body-form-host" });
+
+    const mountForm = () => {
+      formHost.empty();
+      renderEditableKeyValueTable(formHost, entries, {
+        keyPlaceholder: "Field name",
+        valuePlaceholder: "Value",
+        addAriaLabel: "Add field",
+        removeLabel: "Remove field",
+        onChange: () => {
+          parsed.body = serializeFormBodyContent(entries);
+          parsed.request.body = parsed.bodyType;
+          this.scheduleCommit();
+        },
+      });
+    };
+
+    mountForm();
+
+    typeSelect.addEventListener("change", () => {
+      parsed.bodyType = normalizeBodyType(typeSelect.value);
+      parsed.request.body = parsed.bodyType;
+      if (isFormBodyType(parsed.bodyType)) {
+        mountForm();
+      } else {
+        this.renderBodyInto(container, parsed, true);
+      }
+      this.scheduleCommit();
+    });
   }
 
   private renderScriptSection(

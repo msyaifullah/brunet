@@ -5,7 +5,9 @@
  */
 
 import { requestUrl } from "obsidian";
-import { BruFile, BruKeyValue } from "./bruParser";
+import { BruFile, BruKeyValue, getBruBodyType, isFormBodyType, parseFormBodyContent } from "./bruParser";
+import { extractBruVars } from "./bruParser";
+import { normalizeBodyType } from "./bruBodyEditor";
 
 export interface BruResponse {
   status: number;
@@ -28,6 +30,11 @@ export interface BruRequestSnapshot {
 export interface BruRunResult {
   request: BruRequestSnapshot;
   response: BruResponse;
+}
+
+export interface BruRunOptions {
+  /** Collection, folder, and environment variables (request vars override these). */
+  collectionVars?: Record<string, string>;
 }
 
 function resolveVars(text: string, vars: Record<string, string>): string {
@@ -71,8 +78,14 @@ export function getStatusText(status: number): string {
   return map[status] ?? `Status ${status}`;
 }
 
-export function buildBruRequest(parsed: BruFile): BruRequestSnapshot {
-  const vars = buildVarsMap(parsed.varsPreRequest);
+export function buildBruRequest(
+  parsed: BruFile,
+  options?: BruRunOptions,
+): BruRequestSnapshot {
+  const vars = {
+    ...(options?.collectionVars ?? {}),
+    ...buildVarsMap(extractBruVars(parsed)),
+  };
 
   let rawUrl = resolveVars(parsed.request.url, vars);
 
@@ -107,15 +120,38 @@ export function buildBruRequest(parsed: BruFile): BruRequestSnapshot {
   const method = parsed.request.method.toUpperCase();
   const noBodyMethods = new Set(["GET", "HEAD"]);
   let bodyStr: string | undefined;
+  const bodyType = normalizeBodyType(getBruBodyType(parsed));
   if (parsed.body.trim() && !noBodyMethods.has(method)) {
-    bodyStr = resolveVars(parsed.body.trim(), vars);
+    if (bodyType === "form-urlencoded") {
+      const params = new URLSearchParams();
+      for (const e of parseFormBodyContent(parsed.body)) {
+        if (e.enabled && e.key.trim()) {
+          params.append(
+            resolveVars(e.key, vars),
+            resolveVars(e.value, vars),
+          );
+        }
+      }
+      bodyStr = params.toString();
+      const hasContentType = Object.keys(headers).some(
+        (k) => k.toLowerCase() === "content-type",
+      );
+      if (!hasContentType) {
+        headers["Content-Type"] = "application/x-www-form-urlencoded";
+      }
+    } else {
+      bodyStr = resolveVars(parsed.body.trim(), vars);
+    }
   }
 
   return { method, url: rawUrl, headers, body: bodyStr };
 }
 
-export async function runBruRequest(parsed: BruFile): Promise<BruRunResult> {
-  const request = buildBruRequest(parsed);
+export async function runBruRequest(
+  parsed: BruFile,
+  options?: BruRunOptions,
+): Promise<BruRunResult> {
+  const request = buildBruRequest(parsed, options);
   const startMs = Date.now();
   try {
     const resp = await requestUrl({

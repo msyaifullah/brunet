@@ -6,15 +6,24 @@
 
 import { ItemView, WorkspaceLeaf, TFile } from "obsidian";
 import { parseBruFile, getMethodColor } from "./bruParser";
-import { parseBruYml, isBrunoYml, isFolderYml } from "./bruYmlParser";
+import { parseBruYml, isRunnableBrunoYml } from "./bruYmlParser";
 import { runBruRequest } from "./bruRunner";
+import {
+  isEnvironmentFile,
+  isRunnableBruFile,
+  loadCollectionVars,
+} from "./bruCollection";
+import type BrunetPlugin from "./main";
 
 export const COLLECTION_VIEW_TYPE = "brunet-collection";
 
 export class CollectionView extends ItemView {
   private styleInjected = false;
 
-  constructor(leaf: WorkspaceLeaf) {
+  constructor(
+    leaf: WorkspaceLeaf,
+    private plugin: BrunetPlugin,
+  ) {
     super(leaf);
   }
 
@@ -49,11 +58,20 @@ export class CollectionView extends ItemView {
 
     const allFiles = this.app.vault.getFiles();
     const bruFiles = allFiles.filter(f => {
-      if (f.extension === "bru") return true;
+      if (f.extension === "bru") {
+        return (
+          !isEnvironmentFile(f) &&
+          f.basename !== "collection" &&
+          f.basename !== "folder"
+        );
+      }
       if (f.extension === "yml" || f.extension === "yaml") {
-        // Include only Bruno YAML request files, not folder manifests
-        // We check synchronously by extension first; content check happens in renderFileRow
-        return true;
+        return (
+          !isEnvironmentFile(f) &&
+          f.basename !== "folder" &&
+          f.basename !== "collection" &&
+          f.basename !== "opencollection"
+        );
       }
       return false;
     });
@@ -151,8 +169,8 @@ export class CollectionView extends ItemView {
     // Load method badge and filter out folder.yml files asynchronously
     this.app.vault.cachedRead(file).then(content => {
       if (isYml) {
-        if (!isBrunoYml(content) || isFolderYml(content)) {
-          row.remove(); // not a Bruno request file
+        if (!isRunnableBrunoYml(content, file)) {
+          row.remove();
           return;
         }
         const parsed = parseBruYml(content);
@@ -161,6 +179,10 @@ export class CollectionView extends ItemView {
         methodBadge.style.background = getMethodColor(method);
       } else {
         const parsed = parseBruFile(content);
+        if (!isRunnableBruFile(parsed, file)) {
+          row.remove();
+          return;
+        }
         const method = parsed.request.method || "?";
         methodBadge.textContent = method;
         methodBadge.style.background = getMethodColor(method);
@@ -181,9 +203,14 @@ export class CollectionView extends ItemView {
       runBtn.disabled = true;
       runBtn.textContent = "…";
 
-      this.app.vault.cachedRead(file).then(content => {
+      this.app.vault.cachedRead(file).then(async (content) => {
         const parsed = isYml ? parseBruYml(content) : parseBruFile(content);
-        return runBruRequest(parsed);
+        const collectionVars = await loadCollectionVars(
+          this.app.vault,
+          file,
+          this.plugin.settings.activeEnvironment,
+        );
+        return runBruRequest(parsed, { collectionVars });
       }).then(({ response: resp }) => {
         const is2xx = resp.status >= 200 && resp.status < 300;
         runBtn.textContent = String(resp.status || "ERR");

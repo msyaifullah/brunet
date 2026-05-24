@@ -45,8 +45,11 @@ export function normalizeParsedUrl(parsed: BruFile): void {
 }
 
 /** Final URL after path substitution and query params (same as Send uses). */
-export function buildDisplayUrl(parsed: BruFile): string {
-  return buildBruRequest(parsed).url;
+export function buildDisplayUrl(
+  parsed: BruFile,
+  collectionVars?: Record<string, string>,
+): string {
+  return buildBruRequest(parsed, { collectionVars }).url;
 }
 
 /** Apply a manual URL bar edit back into structured path/query fields. */

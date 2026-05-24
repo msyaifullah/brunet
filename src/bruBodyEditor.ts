@@ -1,8 +1,12 @@
 /**
- * CodeMirror body editor for request payloads (JSON, XML, text).
+ * CodeMirror body editor for request payloads (JSON, XML, text, GraphQL, etc.).
  */
 
 import { EditorState, Extension } from "@codemirror/state";
+import {
+  BRU_BODY_TYPES,
+  normalizeBruBodyType,
+} from "./bruParser";
 import {
   EditorView,
   keymap,
@@ -18,7 +22,10 @@ import {
   foldGutter,
   foldKeymap,
   unfoldAll,
+  HighlightStyle,
+  syntaxHighlighting,
 } from "@codemirror/language";
+import { tags } from "@lezer/highlight";
 import { json } from "@codemirror/lang-json";
 import { xml } from "@codemirror/lang-xml";
 
@@ -41,7 +48,7 @@ export function inferBodyTypeFromHeaders(
   headers: Record<string, string>,
   body: string,
   fallback = "",
-): BodyTypeOption {
+): string {
   const ct =
     headers["content-type"] ??
     headers["Content-Type"] ??
@@ -52,27 +59,39 @@ export function inferBodyTypeFromHeaders(
   return inferBodyType(body, fallback);
 }
 
-export const BODY_TYPE_OPTIONS = ["json", "xml", "text"] as const;
-export type BodyTypeOption = (typeof BODY_TYPE_OPTIONS)[number];
+export const BODY_TYPE_OPTIONS = BRU_BODY_TYPES;
+export type BodyTypeOption = (typeof BRU_BODY_TYPES)[number];
 
-export function normalizeBodyType(bodyType: string): BodyTypeOption {
-  const t = bodyType.toLowerCase();
-  if (t === "json" || t === "xml" || t === "text") return t;
-  return "text";
+export function normalizeBodyType(bodyType: string): string {
+  return normalizeBruBodyType(bodyType) || "json";
 }
 
-/** Guess body section type when the .bru file has no body:subtype block yet. */
-export function inferBodyType(body: string, current = ""): BodyTypeOption {
+export function bodyTypeSelectLabel(bodyType: string): string {
+  const t = normalizeBodyType(bodyType);
+  switch (t) {
+    case "form-urlencoded":
+      return "Form URL Encoded";
+    case "multipart-form":
+      return "Multipart Form";
+    case "graphql:vars":
+      return "GraphQL Vars";
+    default:
+      return t.toUpperCase();
+  }
+}
+
+/** Guess body section type only when body:json block / post body mode is absent. */
+export function inferBodyType(body: string, current = ""): string {
   if (current) return normalizeBodyType(current);
   const trimmed = body.trim();
   if (trimmed.startsWith("{") || trimmed.startsWith("[")) return "json";
   if (trimmed.startsWith("<")) return "xml";
-  return "json";
+  return "text";
 }
 
 export function canPrettifyBody(bodyType: string): boolean {
   const t = normalizeBodyType(bodyType);
-  return t === "json" || t === "xml";
+  return t === "json" || t === "xml" || t === "graphql:vars";
 }
 
 export function canFoldBody(bodyType: string): boolean {
@@ -84,7 +103,7 @@ export function prettifyBody(content: string, bodyType: string): string {
   const trimmed = content.trim();
   if (!trimmed) return content;
 
-  if (t === "json") {
+  if (t === "json" || t === "graphql:vars") {
     return JSON.stringify(JSON.parse(trimmed), null, 2);
   }
 
@@ -124,9 +143,26 @@ function prettifyXml(xml: string): string {
   return out.join("\n");
 }
 
+const brunetHighlightStyle = HighlightStyle.define([
+  { tag: tags.keyword,        color: "var(--code-keyword)" },
+  { tag: tags.string,         color: "var(--code-string)" },
+  { tag: tags.number,         color: "var(--code-value)" },
+  { tag: tags.bool,           color: "var(--code-value)" },
+  { tag: tags.null,           color: "var(--code-value)" },
+  { tag: tags.propertyName,   color: "var(--code-property)" },
+  { tag: tags.comment,        color: "var(--code-comment)", fontStyle: "italic" },
+  { tag: tags.punctuation,    color: "var(--code-punctuation)" },
+  { tag: tags.operator,       color: "var(--code-operator)" },
+  { tag: tags.tagName,        color: "var(--code-tag)" },
+  { tag: tags.attributeName,  color: "var(--code-property)" },
+  { tag: tags.attributeValue, color: "var(--code-string)" },
+  { tag: tags.angleBracket,   color: "var(--code-punctuation)" },
+  { tag: tags.content,        color: "var(--text-normal)" },
+]);
+
 function languageExtension(bodyType: string): Extension[] {
-  const t = bodyType.toLowerCase();
-  if (t === "json") return [json()];
+  const t = normalizeBodyType(bodyType);
+  if (t === "json" || t === "graphql:vars") return [json()];
   if (t === "xml") return [xml()];
   return [];
 }
@@ -150,6 +186,7 @@ function buildExtensions(
   const readOnly = options.readOnly === true;
   const extensions: Extension[] = [
     editorTheme,
+    syntaxHighlighting(brunetHighlightStyle),
     lineNumbers(),
     highlightActiveLine(),
     highlightActiveLineGutter(),
