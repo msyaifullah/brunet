@@ -37,11 +37,28 @@ export interface BruRunOptions {
   collectionVars?: Record<string, string>;
 }
 
-function resolveVars(text: string, vars: Record<string, string>): string {
+export function resolveVars(text: string, vars: Record<string, string>): string {
   return text.replace(/\{\{([^}]+)\}\}/g, (_match, key) => {
     const trimmed = key.trim();
     return trimmed in vars ? vars[trimmed] : `{{${trimmed}}}`;
   });
+}
+
+/** Best-effort restore `{{name}}` placeholders from resolved literal values. */
+export function reverseResolveVars(
+  text: string,
+  vars: Record<string, string>,
+): string {
+  let result = text;
+  const entries = Object.entries(vars)
+    .filter(([, value]) => value.length > 0)
+    .sort((a, b) => b[1].length - a[1].length);
+  for (const [key, value] of entries) {
+    if (result.includes(value)) {
+      result = result.split(value).join(`{{${key}}}`);
+    }
+  }
+  return result;
 }
 
 function buildVarsMap(entries: BruKeyValue[]): Record<string, string> {
@@ -78,14 +95,22 @@ export function getStatusText(status: number): string {
   return map[status] ?? `Status ${status}`;
 }
 
+/** Merged variable map: collection/env/folder layers plus request-level vars. */
+export function buildEffectiveVars(
+  parsed: BruFile,
+  collectionVars?: Record<string, string>,
+): Record<string, string> {
+  return {
+    ...(collectionVars ?? {}),
+    ...buildVarsMap(extractBruVars(parsed)),
+  };
+}
+
 export function buildBruRequest(
   parsed: BruFile,
   options?: BruRunOptions,
 ): BruRequestSnapshot {
-  const vars = {
-    ...(options?.collectionVars ?? {}),
-    ...buildVarsMap(extractBruVars(parsed)),
-  };
+  const vars = buildEffectiveVars(parsed, options?.collectionVars);
 
   let rawUrl = resolveVars(parsed.request.url, vars);
 

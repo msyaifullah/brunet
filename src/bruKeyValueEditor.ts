@@ -12,6 +12,10 @@ export interface EditableKeyValueOptions {
   removeLabel: string;
   /** Headers/params use a leading enabled checkbox column. */
   showEnabledColumn?: boolean;
+  /** When set, shows the resolved value below the input (Bruno/Postman-style). */
+  resolveDisplayValue?: (raw: string) => string;
+  /** Called after the key field changes (e.g. rename `:path` in URL). */
+  onKeyChange?: (entry: BruKeyValue, previousKey: string) => void;
   onChange: () => void;
 }
 
@@ -59,19 +63,45 @@ export function renderEditableKeyValueTable(
       });
       keyInput.value = entry.key;
       keyInput.addEventListener("input", () => {
+        const previousKey = entry.key;
         entry.key = keyInput.value;
+        opts.onKeyChange?.(entry, previousKey);
         opts.onChange();
       });
 
-      const valueTd = tr.createEl("td", { cls: "bru-value" });
+      const valueTd = tr.createEl("td", { cls: "bru-value bru-value-cell" });
       const valueInput = valueTd.createEl("input", {
         type: "text",
         cls: "bru-field-input",
         attr: { placeholder: opts.valuePlaceholder },
       });
       valueInput.value = entry.value;
+      valueInput.dataset.rawValue = entry.value;
+
+      const resolvedPreview = valueTd.createDiv({
+        cls: "bru-param-resolved",
+      });
+      resolvedPreview.hidden = true;
+
+      const syncResolvedPreview = () => {
+        valueInput.dataset.rawValue = entry.value;
+        if (!opts.resolveDisplayValue) {
+          resolvedPreview.hidden = true;
+          return;
+        }
+        const resolved = opts.resolveDisplayValue(entry.value);
+        if (resolved !== entry.value && resolved.length > 0) {
+          resolvedPreview.setText(resolved);
+          resolvedPreview.hidden = false;
+        } else {
+          resolvedPreview.hidden = true;
+        }
+      };
+
+      syncResolvedPreview();
       valueInput.addEventListener("input", () => {
         entry.value = valueInput.value;
+        syncResolvedPreview();
         opts.onChange();
       });
 

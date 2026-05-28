@@ -80,7 +80,11 @@ function hasCollectionMarker(vault: Vault, folderPath: string): boolean {
   const prefix = folderPath ? `${folderPath}/` : "";
   return (
     vault.getAbstractFileByPath(`${prefix}bruno.json`) instanceof TFile ||
-    vault.getAbstractFileByPath(`${prefix}collection.bru`) instanceof TFile
+    vault.getAbstractFileByPath(`${prefix}collection.bru`) instanceof TFile ||
+    vault.getAbstractFileByPath(`${prefix}collection.yml`) instanceof TFile ||
+    vault.getAbstractFileByPath(`${prefix}collection.yaml`) instanceof TFile ||
+    vault.getAbstractFileByPath(`${prefix}opencollection.yml`) instanceof TFile ||
+    vault.getAbstractFileByPath(`${prefix}opencollection.yaml`) instanceof TFile
   );
 }
 
