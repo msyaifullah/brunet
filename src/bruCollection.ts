@@ -239,15 +239,6 @@ export async function loadCollectionVars(
 
   const layers: Record<string, string>[] = [];
 
-  if (environmentName) {
-    if (options?.envOverrides !== undefined) {
-      layers.push(options.envOverrides);
-    } else {
-      const envPath = getEnvironmentBruPath(collectionRoot, environmentName);
-      layers.push(await readVarsFromPath(vault, envPath));
-    }
-  }
-
   const collectionPath = collectionRoot
     ? `${collectionRoot}/collection.bru`
     : "collection.bru";
@@ -255,6 +246,16 @@ export async function loadCollectionVars(
 
   for (const folderBru of ancestorFolderBruPaths(requestFile, collectionRoot)) {
     layers.push(await readVarsFromPath(vault, folderBru));
+  }
+
+  // Environment vars pushed last so they win over collection/folder vars.
+  if (environmentName) {
+    if (options?.envOverrides !== undefined) {
+      layers.push(options.envOverrides);
+    } else {
+      const envPath = getEnvironmentBruPath(collectionRoot, environmentName);
+      layers.push(await readVarsFromPath(vault, envPath));
+    }
   }
 
   return mergeVarLayers(...layers);

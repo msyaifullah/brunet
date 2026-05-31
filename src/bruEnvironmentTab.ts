@@ -121,11 +121,17 @@ export async function mountEnvironmentTab(
     );
     const rawFile = await vault.read(file);
     envVarsState = { file, entries: deduped, raw: rawFile };
-    liveEntries = deduped.map((e) => ({ ...e }));
-    onVarsUpdated();
 
     if (deduped.length !== before) {
+      // Structural change (deduplication or disabled entries removed): replace
+      // liveEntries and re-render so UI closures reference the new objects.
+      liveEntries = deduped.map((e) => ({ ...e }));
+      onVarsUpdated();
       await renderVars();
+    } else {
+      // Values-only change: keep the existing entry objects so the table's input
+      // event listeners (which close over those objects) stay in sync.
+      pushLiveVarsToRequest();
     }
   };
 
