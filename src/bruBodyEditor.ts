@@ -306,11 +306,7 @@ export function createBodyEditor(
       });
       suppressChange = false;
     },
-    foldAll: () => {
-      foldAll(view);
-    },
-    unfoldAll: () => {
-      unfoldAll(view);
-    },
+    foldAll: () => foldAll(view),
+    unfoldAll: () => unfoldAll(view),
   };
 }

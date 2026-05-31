@@ -462,6 +462,17 @@ function extractBraceBlockContent(
   };
 }
 
+export function bruKeyValueToRecord(entries: BruKeyValue[]): Record<string, string> {
+  const result: Record<string, string> = {};
+  for (const entry of entries) {
+    const key = entry.key.trim();
+    if (entry.enabled && key) {
+      result[key] = entry.value;
+    }
+  }
+  return result;
+}
+
 export function extractBruVars(parsed: BruFile): BruKeyValue[] {
   return dedupeKeyValueEntries([...parsed.vars, ...parsed.varsPreRequest]);
 }
@@ -572,26 +583,9 @@ function findSectionBounds(lines: string[], sectionName: string): SectionBounds 
 }
 
 function findMethodSectionBounds(lines: string[]): (SectionBounds & { sectionName: string }) | null {
-  for (let i = 0; i < lines.length; i++) {
-    const match = lines[i].trim().match(/^([\w:~-]+)\s*\{$/);
-    if (!match) continue;
-
-    const sectionName = match[1].toLowerCase();
-    if (!HTTP_METHODS.has(sectionName)) continue;
-
-    let depth = 1;
-    let j = i + 1;
-    const contentStart = j;
-    while (j < lines.length && depth > 0) {
-      const trimSl = lines[j].trim();
-      if (trimSl === "{") depth++;
-      else if (trimSl === "}") {
-        depth--;
-        if (depth === 0) break;
-      }
-      j++;
-    }
-    return { headerIndex: i, contentStart, contentEnd: j, sectionName };
+  for (const method of HTTP_METHODS) {
+    const bounds = findSectionBounds(lines, method);
+    if (bounds) return { ...bounds, sectionName: method };
   }
   return null;
 }

@@ -6,7 +6,7 @@ import { TFile, Vault } from "obsidian";
 import { parseBruFile } from "./bruParser";
 import { parseBruYml, isRunnableBrunoYml } from "./bruYmlParser";
 import {
-  isEnvironmentFile,
+  isCandidateRequestFile,
   isRunnableBruFile,
   loadCollectionVars,
 } from "./bruCollection";
@@ -236,31 +236,12 @@ export function describeFlowCondition(condition: FlowCondition): string {
   return `${ref} ${field} ${condition.operator} ${condition.value}`;
 }
 
-function isRunnableRequestFile(vault: Vault, file: TFile): boolean {
-  if (file.extension === "bru") {
-    return (
-      !isEnvironmentFile(file) &&
-      file.basename !== "collection" &&
-      file.basename !== "folder"
-    );
-  }
-  if (file.extension === "yml" || file.extension === "yaml") {
-    return (
-      !isEnvironmentFile(file) &&
-      file.basename !== "folder" &&
-      file.basename !== "collection" &&
-      file.basename !== "opencollection"
-    );
-  }
-  return false;
-}
-
 export async function listRunnableRequestFiles(
   vault: Vault,
 ): Promise<RunnableRequestFile[]> {
   const candidates = vault
     .getFiles()
-    .filter((f) => isRunnableRequestFile(vault, f));
+    .filter(isCandidateRequestFile);
 
   const results: RunnableRequestFile[] = [];
 

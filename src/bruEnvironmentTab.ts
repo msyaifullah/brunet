@@ -4,6 +4,7 @@
 
 import { TFile, Vault } from "obsidian";
 import {
+  entriesToVarRecord,
   findCollectionRoot,
   listEnvironmentNames,
   loadEnvironmentVars,
@@ -19,10 +20,20 @@ export interface EnvironmentTabContext {
   vault: Vault;
   plugin: BrunetPlugin;
   requestFile: TFile;
-  onVarsUpdated: () => void;
+  /** Pass live env rows while editing; omit after save to reload from disk. */
+  onVarsUpdated: (liveEnvVars?: Record<string, string>) => void;
 }
 
-export async function mountEnvironmentTab(ctx: EnvironmentTabContext): Promise<void> {
+export interface EnvironmentTabHandle {
+  /** Reload variable rows for the active environment (e.g. after selection changes). */
+  refresh: () => Promise<void>;
+  /** Current in-memory variable rows (after refresh). */
+  getLiveVars: () => Record<string, string>;
+}
+
+export async function mountEnvironmentTab(
+  ctx: EnvironmentTabContext,
+): Promise<EnvironmentTabHandle | null> {
   const { panel, vault, plugin, requestFile, onVarsUpdated } = ctx;
   panel.empty();
   panel.addClass("bru-env-tab-panel");
@@ -33,7 +44,7 @@ export async function mountEnvironmentTab(ctx: EnvironmentTabContext): Promise<v
       text: "No Bruno collection root (bruno.json or collection.bru).",
       cls: "bru-tab-empty",
     });
-    return;
+    return null;
   }
 
   const envNames = listEnvironmentNames(vault, collectionRoot);
@@ -42,7 +53,7 @@ export async function mountEnvironmentTab(ctx: EnvironmentTabContext): Promise<v
       text: "No environments in environments/.",
       cls: "bru-tab-empty",
     });
-    return;
+    return null;
   }
 
   const toolbar = panel.createDiv({ cls: "bru-env-tab-toolbar" });
@@ -52,10 +63,7 @@ export async function mountEnvironmentTab(ctx: EnvironmentTabContext): Promise<v
   const select = typeWrap.createEl("select", { cls: "bru-body-type-select" });
   select.createEl("option", { text: "(none)", value: "" });
   for (const name of envNames) {
-    const opt = select.createEl("option", { text: name, value: name });
-    if (name === plugin.settings.activeEnvironment) {
-      opt.selected = true;
-    }
+    select.createEl("option", { text: name, value: name });
   }
 
   const varsHost = panel.createDiv({ cls: "bru-env-tab-vars" });
@@ -63,7 +71,26 @@ export async function mountEnvironmentTab(ctx: EnvironmentTabContext): Promise<v
   let envSaveTimer: number | null = null;
   let liveEntries: BruKeyValue[] = [];
 
+  const syncSelectToSettings = (): void => {
+    select.value = plugin.settings.activeEnvironment;
+  };
+
+  const pushLiveVarsToRequest = (): void => {
+    const envName = plugin.settings.activeEnvironment;
+    if (!envName) {
+      onVarsUpdated();
+      return;
+    }
+    const live = entriesToVarRecord(liveEntries);
+    if (Object.keys(live).length > 0) {
+      onVarsUpdated(live);
+    } else {
+      onVarsUpdated();
+    }
+  };
+
   const scheduleSave = () => {
+    pushLiveVarsToRequest();
     if (envSaveTimer !== null) window.clearTimeout(envSaveTimer);
     envSaveTimer = window.setTimeout(() => {
       void persistEntries();
@@ -102,37 +129,57 @@ export async function mountEnvironmentTab(ctx: EnvironmentTabContext): Promise<v
     }
   };
 
-  const renderVars = async () => {
-    varsHost.empty();
-    const envName = plugin.settings.activeEnvironment;
-    if (!envName) {
-      varsHost.createEl("p", {
-        text: "Select an environment to edit variables.",
-        cls: "bru-tab-empty",
-      });
-      envVarsState = null;
-      liveEntries = [];
+  let renderVarsInflight: Promise<void> | null = null;
+
+  const renderVars = async (): Promise<void> => {
+    if (renderVarsInflight) {
+      await renderVarsInflight;
       return;
     }
 
-    envVarsState = await loadEnvironmentVars(vault, collectionRoot, envName);
-    liveEntries = envVarsState.entries.map((e) => ({ ...e }));
+    renderVarsInflight = (async () => {
+      syncSelectToSettings();
+      varsHost.empty();
+      const envName = plugin.settings.activeEnvironment;
+      if (!envName) {
+        varsHost.createEl("p", {
+          text: "Select an environment to edit variables.",
+          cls: "bru-tab-empty",
+        });
+        envVarsState = null;
+        liveEntries = [];
+        return;
+      }
 
-    renderEditableKeyValueTable(varsHost, liveEntries, {
-      keyPlaceholder: "Variable name",
-      valuePlaceholder: "Variable value",
-      addAriaLabel: "Add variable",
-      removeLabel: "Remove variable",
-      showEnabledColumn: true,
-      onChange: scheduleSave,
-    });
+      envVarsState = await loadEnvironmentVars(vault, collectionRoot, envName);
+      liveEntries = envVarsState.entries.map((e) => ({ ...e }));
+
+      renderEditableKeyValueTable(varsHost, liveEntries, {
+        keyPlaceholder: "Variable name",
+        valuePlaceholder: "Variable value",
+        addAriaLabel: "Add variable",
+        removeLabel: "Remove variable",
+        showEnabledColumn: true,
+        onChange: scheduleSave,
+      });
+    })();
+
+    try {
+      await renderVarsInflight;
+    } finally {
+      renderVarsInflight = null;
+    }
   };
 
   select.addEventListener("change", async () => {
     await plugin.setActiveEnvironment(select.value);
-    await renderVars();
-    onVarsUpdated();
   });
 
+  syncSelectToSettings();
   await renderVars();
+
+  return {
+    refresh: renderVars,
+    getLiveVars: () => entriesToVarRecord(liveEntries),
+  };
 }

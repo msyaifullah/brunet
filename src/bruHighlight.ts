@@ -244,9 +244,6 @@ function tokenFreeform(stream: StringStream, state: BruState): string | null {
   return null;
 }
 
-// Keep state reference for depth tracking from outer token fn
-void tokenFreeform;
-
 /**
  * Returns a LanguageSupport object that can be added to a CodeMirror EditorState.
  */

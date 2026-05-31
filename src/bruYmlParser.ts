@@ -183,6 +183,14 @@ export function isRunnableBrunoYml(content: string, file: TFile): boolean {
   return Boolean(parseBruYml(content).request.method);
 }
 
+function tryParseYamlDoc(raw: string): BrunoYmlDoc | null {
+  try {
+    return (parseYaml(raw) as BrunoYmlDoc) ?? {};
+  } catch {
+    return null;
+  }
+}
+
 function toKv(arr: YmlHeader[] | undefined): BruKeyValue[] {
   if (!arr) return [];
   return arr
@@ -342,12 +350,8 @@ function extractYmlAuth(auth: string | YmlAuth | undefined): string {
 }
 
 export function updateYmlHeaders(raw: string, entries: BruKeyValue[]): string {
-  let doc: BrunoYmlDoc = {};
-  try {
-    doc = (parseYaml(raw) as BrunoYmlDoc) ?? {};
-  } catch {
-    return raw;
-  }
+  const doc = tryParseYamlDoc(raw);
+  if (!doc) return raw;
 
   const newHeaders: YmlHeader[] = entries
     .filter((e) => e.key.trim() && e.enabled)
@@ -364,12 +368,8 @@ export function updateYmlParams(
   queryEntries: BruKeyValue[],
   pathEntries: BruKeyValue[],
 ): string {
-  let doc: BrunoYmlDoc = {};
-  try {
-    doc = (parseYaml(raw) as BrunoYmlDoc) ?? {};
-  } catch {
-    return raw;
-  }
+  const doc = tryParseYamlDoc(raw);
+  if (!doc) return raw;
 
   const newQueryParams: YmlParam[] = queryEntries
     .filter((e) => e.key.trim() && e.enabled)
@@ -390,12 +390,8 @@ export function updateYmlBody(
   bodyType: string,
   bodyContent: string,
 ): string {
-  let doc: BrunoYmlDoc = {};
-  try {
-    doc = (parseYaml(raw) as BrunoYmlDoc) ?? {};
-  } catch {
-    return raw;
-  }
+  const doc = tryParseYamlDoc(raw);
+  if (!doc) return raw;
 
   if (!doc.http) doc.http = {};
 
@@ -413,12 +409,8 @@ export function updateYmlBody(
 
 /** Apply in-memory request edits back to a Bruno YAML file. */
 export function updateYmlFromParsed(raw: string, parsed: BruFile): string {
-  let doc: BrunoYmlDoc = {};
-  try {
-    doc = (parseYaml(raw) as BrunoYmlDoc) ?? {};
-  } catch {
-    return raw;
-  }
+  const doc = tryParseYamlDoc(raw);
+  if (!doc) return raw;
 
   if (!doc.http) doc.http = {};
 

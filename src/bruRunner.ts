@@ -64,8 +64,9 @@ export function reverseResolveVars(
 function buildVarsMap(entries: BruKeyValue[]): Record<string, string> {
   const vars: Record<string, string> = {};
   for (const entry of entries) {
-    if (entry.enabled) {
-      vars[entry.key] = entry.value;
+    const key = entry.key.trim();
+    if (entry.enabled && key) {
+      vars[key] = entry.value;
     }
   }
   return vars;

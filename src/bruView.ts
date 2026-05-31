@@ -45,7 +45,10 @@ import {
   isAnyCollectionManifestFile,
   loadCollectionVars,
 } from "./bruCollection";
-import { mountEnvironmentTab as mountEnvironmentTabContent } from "./bruEnvironmentTab";
+import {
+  mountEnvironmentTab as mountEnvironmentTabContent,
+  type EnvironmentTabHandle,
+} from "./bruEnvironmentTab";
 import { renderEditableKeyValueTable } from "./bruKeyValueEditor";
 import {
   normalizeParsedUrl,
@@ -138,8 +141,6 @@ export class BruFileView extends TextFileView {
   private tabHolder: HTMLElement | null = null;
   private consolePanel: HTMLElement | null = null;
   private urlInput: HTMLInputElement | null = null;
-  private urlPreviewEl: HTMLElement | null = null;
-  private urlFieldWrap: HTMLElement | null = null;
   private bodyEditor: BodyEditorHandle | null = null;
   private consoleEditors: BodyEditorHandle[] = [];
   private lastConsole: BruRunResult | null = null;
@@ -148,6 +149,7 @@ export class BruFileView extends TextFileView {
   private renderGeneration = 0;
   private unregisterEnvListener?: () => void;
   private envPanel: HTMLElement | null = null;
+  private envTabHandle: EnvironmentTabHandle | null = null;
 
   constructor(
     leaf: WorkspaceLeaf,
@@ -162,9 +164,6 @@ export class BruFileView extends TextFileView {
     this.applyFullWidthLayout();
     this.unregisterEnvListener = this.plugin.onEnvironmentChange(() => {
       void this.refreshCollectionVarsCache();
-      if (this.envPanel) {
-        void this.mountEnvironmentTab(this.envPanel);
-      }
     });
     this.registerEvent(
       this.app.vault.on("modify", (file) => {
@@ -243,6 +242,7 @@ export class BruFileView extends TextFileView {
     this.destroyBodyEditor();
     this.destroyConsoleEditors();
     this.envPanel = null;
+    this.envTabHandle = null;
     this.contentDiv.empty();
     const renderGen = ++this.renderGeneration;
 
@@ -453,41 +453,12 @@ export class BruFileView extends TextFileView {
         outline: none;
       }
       .bru-url-field-wrap {
-        position: relative;
         flex: 1;
         min-width: 12em;
       }
       .bru-url-field-wrap .bru-url-input {
         width: 100%;
         box-sizing: border-box;
-      }
-      .bru-url-tooltip {
-        display: none;
-        position: absolute;
-        top: calc(100% + 4px);
-        left: 0;
-        right: 0;
-        z-index: 30;
-        padding: 0.5em 0.65em;
-        font-family: var(--font-monospace);
-        font-size: 0.8em;
-        color: var(--text-normal);
-        word-break: break-all;
-        line-height: 1.4;
-        background: var(--background-primary);
-        border: 1px solid var(--background-modifier-border);
-        border-radius: 6px;
-        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
-        pointer-events: none;
-      }
-      .bru-url-field-wrap.has-resolved-tooltip .bru-url-input:hover + .bru-url-tooltip {
-        display: block;
-      }
-      .bru-url-tooltip-label {
-        display: block;
-        font-size: 0.85em;
-        color: var(--text-faint);
-        margin-bottom: 0.25em;
       }
       .bru-param-resolved {
         font-family: var(--font-monospace);
@@ -1081,12 +1052,13 @@ export class BruFileView extends TextFileView {
 
   private async mountEnvironmentTab(panel: HTMLElement): Promise<void> {
     if (!this.file) return;
-    await mountEnvironmentTabContent({
+    this.envTabHandle = await mountEnvironmentTabContent({
       panel,
       vault: this.app.vault,
       plugin: this.plugin,
       requestFile: this.file,
-      onVarsUpdated: () => void this.refreshCollectionVarsCache(),
+      onVarsUpdated: (liveEnvVars) =>
+        void this.refreshCollectionVarsCache(liveEnvVars),
     });
   }
 
@@ -1095,22 +1067,43 @@ export class BruFileView extends TextFileView {
     return buildEffectiveVars(this.parsed, this.collectionVars);
   }
 
-  private async loadCollectionVarsForCurrentFile(): Promise<void> {
+  private async loadCollectionVarsForCurrentFile(
+    liveEnvVars?: Record<string, string>,
+  ): Promise<void> {
     if (!this.file) {
       this.collectionVars = {};
       return;
     }
+    const useLiveEnv =
+      liveEnvVars !== undefined && Object.keys(liveEnvVars).length > 0;
     this.collectionVars = await loadCollectionVars(
       this.app.vault,
       this.file,
       this.plugin.settings.activeEnvironment,
+      useLiveEnv ? { envOverrides: liveEnvVars } : undefined,
     );
   }
 
-  private async refreshCollectionVarsCache(): Promise<void> {
-    await this.loadCollectionVarsForCurrentFile();
+  private async refreshCollectionVarsCache(
+    liveEnvVars?: Record<string, string>,
+  ): Promise<void> {
+    await this.loadCollectionVarsForCurrentFile(liveEnvVars);
     this.syncUrlFromParams();
     this.refreshParamResolvedPreviews();
+  }
+
+  /** Called when the active environment changes (Environment tab dropdown). */
+  async handleActiveEnvironmentChanged(): Promise<void> {
+    if (!this.envTabHandle && this.envPanel) {
+      await this.mountEnvironmentTab(this.envPanel);
+    }
+    const handle = this.envTabHandle;
+    if (handle) {
+      await handle.refresh();
+      await this.refreshCollectionVarsCache(handle.getLiveVars());
+    } else {
+      await this.refreshCollectionVarsCache();
+    }
   }
 
   private async runWithCollectionVars(): Promise<BruRunResult> {
@@ -1261,25 +1254,17 @@ export class BruFileView extends TextFileView {
   private syncUrlFromParams(): void {
     if (!this.urlInput || !this.parsed) return;
     this.urlInput.value = getTemplateUrl(this.parsed);
-    this.syncUrlPreview();
+    this.syncUrlTooltip();
   }
 
-  private syncUrlPreview(): void {
-    if (!this.urlPreviewEl || !this.parsed || !this.urlFieldWrap) return;
-    const show = hasResolvedUrlPreview(this.parsed, this.collectionVars);
-    if (!show) {
-      this.urlPreviewEl.empty();
-      this.urlFieldWrap.classList.remove("has-resolved-tooltip");
-      return;
+  /** Native tooltip on the URL input shows the fully resolved URL on hover. */
+  private syncUrlTooltip(): void {
+    if (!this.urlInput || !this.parsed) return;
+    if (hasResolvedUrlPreview(this.parsed, this.collectionVars)) {
+      this.urlInput.title = buildDisplayUrl(this.parsed, this.collectionVars);
+    } else {
+      this.urlInput.title = "Request URL template";
     }
-    const resolved = buildDisplayUrl(this.parsed, this.collectionVars);
-    this.urlPreviewEl.empty();
-    this.urlPreviewEl.createSpan({
-      text: "Resolved URL",
-      cls: "bru-url-tooltip-label",
-    });
-    this.urlPreviewEl.appendText(resolved);
-    this.urlFieldWrap.classList.add("has-resolved-tooltip");
   }
 
   private onParamFieldChange(): void {
@@ -1475,24 +1460,20 @@ export class BruFileView extends TextFileView {
 
     if (editable) {
       const urlWrap = header.createDiv({ cls: "bru-url-field-wrap" });
-      this.urlFieldWrap = urlWrap;
       const urlInput = urlWrap.createEl("input", {
         type: "text",
         cls: "bru-url-input",
         attr: {
           placeholder: "{{host}}/api/users/:id",
-          title: "Request URL template (variables and :path params)",
         },
       });
       this.urlInput = urlInput;
       urlInput.value = getTemplateUrl(parsed);
-      const urlTooltip = urlWrap.createDiv({ cls: "bru-url-tooltip" });
-      this.urlPreviewEl = urlTooltip;
-      this.syncUrlPreview();
+      this.syncUrlTooltip();
 
       urlInput.addEventListener("input", () => {
         applyTemplateUrlToParsed(parsed, urlInput.value);
-        this.syncUrlPreview();
+        this.syncUrlTooltip();
         this.refreshParamResolvedPreviews();
         this.scheduleCommit();
       });

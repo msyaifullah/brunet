@@ -177,7 +177,17 @@ export default class BrunetPlugin extends Plugin {
   async setActiveEnvironment(name: string): Promise<void> {
     this.settings.activeEnvironment = name;
     await this.saveSettings();
+    await this.refreshOpenBruViews();
     this.notifyEnvironmentListeners();
+  }
+
+  /** Push the new environment into every open Brunet request preview. */
+  private async refreshOpenBruViews(): Promise<void> {
+    const views = this.app.workspace
+      .getLeavesOfType(BRU_VIEW_TYPE)
+      .map((leaf) => leaf.view)
+      .filter((view): view is BruFileView => view instanceof BruFileView);
+    await Promise.all(views.map((view) => view.handleActiveEnvironmentChanged()));
   }
 
   notifyVarsUpdated(): void {

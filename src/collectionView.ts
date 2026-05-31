@@ -9,7 +9,7 @@ import { parseBruFile, getMethodColor } from "./bruParser";
 import { parseBruYml, isRunnableBrunoYml } from "./bruYmlParser";
 import { runBruRequest } from "./bruRunner";
 import {
-  isEnvironmentFile,
+  isCandidateRequestFile,
   isRunnableBruFile,
   loadCollectionVars,
 } from "./bruCollection";
@@ -57,24 +57,7 @@ export class CollectionView extends ItemView {
     this.injectStyles(contentArea);
 
     const allFiles = this.app.vault.getFiles();
-    const bruFiles = allFiles.filter(f => {
-      if (f.extension === "bru") {
-        return (
-          !isEnvironmentFile(f) &&
-          f.basename !== "collection" &&
-          f.basename !== "folder"
-        );
-      }
-      if (f.extension === "yml" || f.extension === "yaml") {
-        return (
-          !isEnvironmentFile(f) &&
-          f.basename !== "folder" &&
-          f.basename !== "collection" &&
-          f.basename !== "opencollection"
-        );
-      }
-      return false;
-    });
+    const bruFiles = allFiles.filter(isCandidateRequestFile);
 
     if (bruFiles.length === 0) {
       contentArea.createEl("p", {

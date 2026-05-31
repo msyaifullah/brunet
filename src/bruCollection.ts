@@ -6,6 +6,7 @@ import { TFile, Vault } from "obsidian";
 import {
   BruFile,
   BruKeyValue,
+  bruKeyValueToRecord,
   extractBruVars,
   getEnvironmentVarEntries,
   parseBruFile,
@@ -51,14 +52,32 @@ export function isRunnableBruFile(parsed: BruFile, file: TFile): boolean {
   return Boolean(parsed.request.method);
 }
 
-function varsToRecord(entries: BruKeyValue[]): Record<string, string> {
-  const vars: Record<string, string> = {};
-  for (const entry of entries) {
-    if (entry.enabled && entry.key.trim()) {
-      vars[entry.key] = entry.value;
-    }
+/** Vault files that may be HTTP requests (excludes manifests and environment files). */
+export function isCandidateRequestFile(file: TFile): boolean {
+  if (file.extension === "bru") {
+    return (
+      !isEnvironmentFile(file) &&
+      file.basename !== "collection" &&
+      file.basename !== "folder"
+    );
   }
-  return vars;
+  if (file.extension === "yml" || file.extension === "yaml") {
+    return (
+      !isEnvironmentFile(file) &&
+      file.basename !== "folder" &&
+      file.basename !== "collection" &&
+      file.basename !== "opencollection"
+    );
+  }
+  return false;
+}
+
+export function entriesToVarRecord(entries: BruKeyValue[]): Record<string, string> {
+  return bruKeyValueToRecord(entries);
+}
+
+function varsToRecord(entries: BruKeyValue[]): Record<string, string> {
+  return entriesToVarRecord(entries);
 }
 
 function mergeVarLayers(...layers: Record<string, string>[]): Record<string, string> {
@@ -187,7 +206,9 @@ async function readVarsFromPath(
   const file = vault.getAbstractFileByPath(filePath);
   if (!(file instanceof TFile)) return {};
   try {
-    const content = await vault.cachedRead(file);
+    const content = isEnvironmentBruPath(filePath)
+      ? await vault.read(file)
+      : await vault.cachedRead(file);
     const parsed = parseBruFile(content);
     const entries = isEnvironmentBruPath(filePath)
       ? getEnvironmentVarEntries(parsed)
@@ -202,10 +223,16 @@ async function readVarsFromPath(
  * Merge variables Bruno-style: environment → collection → ancestor folders.
  * Request-level vars are applied separately in bruRunner (highest priority).
  */
+export interface LoadCollectionVarsOptions {
+  /** Use in-memory env rows (Environment tab) instead of reading from disk. */
+  envOverrides?: Record<string, string>;
+}
+
 export async function loadCollectionVars(
   vault: Vault,
   requestFile: TFile,
   environmentName: string,
+  options?: LoadCollectionVarsOptions,
 ): Promise<Record<string, string>> {
   const collectionRoot = findCollectionRoot(requestFile, vault);
   if (!collectionRoot) return {};
@@ -213,8 +240,12 @@ export async function loadCollectionVars(
   const layers: Record<string, string>[] = [];
 
   if (environmentName) {
-    const envPath = getEnvironmentBruPath(collectionRoot, environmentName);
-    layers.push(await readVarsFromPath(vault, envPath));
+    if (options?.envOverrides !== undefined) {
+      layers.push(options.envOverrides);
+    } else {
+      const envPath = getEnvironmentBruPath(collectionRoot, environmentName);
+      layers.push(await readVarsFromPath(vault, envPath));
+    }
   }
 
   const collectionPath = collectionRoot
