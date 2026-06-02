@@ -44,6 +44,10 @@ import {
   isAnyFolderManifestFile,
   isAnyCollectionManifestFile,
   loadCollectionVars,
+  loadEnvironmentVars,
+  saveEnvironmentVars,
+  findCollectionRoot,
+  type EnvironmentVarsState,
 } from "./bruCollection";
 import {
   mountEnvironmentTab as mountEnvironmentTabContent,
@@ -1378,7 +1382,7 @@ export class BruFileView extends TextFileView {
     const vars = [...parsed.varsPreRequest, ...parsed.vars].filter(
       (entry) => entry.enabled && entry.key.trim(),
     );
-    if (vars.length > 0) rows.push(["Variables", String(vars.length)]);
+    if (kind !== "environment" && vars.length > 0) rows.push(["Variables", String(vars.length)]);
 
     const ignore =
       jsonManifest?.ignore ??
@@ -1404,7 +1408,11 @@ export class BruFileView extends TextFileView {
       }
     }
 
-    if (vars.length > 0) {
+    if (kind === "environment") {
+      const editorSection = panel.createDiv({ cls: "bru-manifest-subsection" });
+      editorSection.createEl("h3", { text: "Variables", cls: "bru-manifest-subtitle" });
+      void this.renderEnvironmentEditor(editorSection);
+    } else if (vars.length > 0) {
       const varsSection = panel.createDiv({ cls: "bru-manifest-subsection" });
       varsSection.createEl("h3", {
         text: "Variables",
@@ -1425,6 +1433,43 @@ export class BruFileView extends TextFileView {
       const docsBlock = docsSection.createDiv({ cls: "bru-code-block bru-manifest-docs" });
       docsBlock.setText(parsed.docs.trim());
     }
+  }
+
+  private async renderEnvironmentEditor(container: HTMLElement): Promise<void> {
+    if (!this.file) return;
+    const vault = this.app.vault;
+    const collectionRoot = findCollectionRoot(this.file, vault);
+    if (collectionRoot === null) return;
+    const envName = this.file.basename;
+
+    let state: EnvironmentVarsState;
+    try {
+      state = await loadEnvironmentVars(vault, collectionRoot, envName);
+    } catch {
+      container.createEl("p", { text: "Could not load environment variables.", cls: "bru-manifest-desc" });
+      return;
+    }
+
+    const entries = state.entries.length > 0
+      ? state.entries
+      : [{ key: "", value: "", enabled: true }];
+
+    let envSaveTimer: number | null = null;
+    renderEditableKeyValueTable(container, entries, {
+      keyPlaceholder: "variable",
+      valuePlaceholder: "value",
+      addAriaLabel: "Add variable",
+      removeLabel: "Remove variable",
+      showEnabledColumn: true,
+      onChange: () => {
+        if (envSaveTimer !== null) window.clearTimeout(envSaveTimer);
+        envSaveTimer = window.setTimeout(() => {
+          void saveEnvironmentVars(vault, collectionRoot, envName, entries, state);
+          this.plugin.notifyVarsUpdated();
+          envSaveTimer = null;
+        }, 400);
+      },
+    });
   }
 
   private renderHeader(
