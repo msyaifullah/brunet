@@ -11,6 +11,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      id-token: write
+      attestations: write
     steps:
       - uses: actions/checkout@v4
       - name: Use Node.js
@@ -21,17 +23,32 @@ jobs:
         run: |
           npm install --legacy-peer-deps
           npm run build
+      - name: Collect release assets
+        id: assets
+        run: |
+          assets=(main.js manifest.json)
+          # Include mermaid bundle only when the flow panel feature flag is enabled.
+          if grep -q 'FLOW_PANEL: true' src/featureFlags.ts; then
+            assets+=(mermaid.bundle.js)
+          fi
+          if [ -f styles.css ]; then
+            assets+=(styles.css)
+          fi
+          # Export as newline-delimited list for the attestation step.
+          printf '%s\n' "${assets[@]}" > /tmp/asset-list.txt
+          echo "paths=$(IFS=,; echo "${assets[*]}")" >> "$GITHUB_OUTPUT"
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: ${{ steps.assets.outputs.paths }}
       - name: Create release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           tag="${GITHUB_REF#refs/tags/}"
-          assets=(main.js mermaid.bundle.js manifest.json)
-          # styles.css is optional per Obsidian docs; attach only if present
-          if [ -f styles.css ]; then
-            assets+=(styles.css)
-          fi
+          mapfile -t assets < /tmp/asset-list.txt
           gh release create "$tag" \
             --title="$tag" \
+            --generate-notes \
             --draft \
             "${assets[@]}"

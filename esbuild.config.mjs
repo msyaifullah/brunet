@@ -48,6 +48,12 @@ const mermaidTrimPlugin = {
 			contents: "export default {};",
 			loader: "js",
 		}));
+		// d3-fetch wraps native fetch() for network requests mermaid never actually
+		// makes in our usage — stub it to keep fetch() out of the bundle entirely.
+		build.onLoad({ filter: /node_modules\/d3-fetch\// }, () => ({
+			contents: "export default {};",
+			loader: "js",
+		}));
 	},
 };
 
