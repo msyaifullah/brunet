@@ -122,10 +122,40 @@ export const BRU_VIEW_LEAF_STYLES = `
   }
 `;
 
+const BRU_QUICK_OPEN_STYLES = `
+  .bru-qo-top {
+    display: flex;
+    align-items: center;
+    gap: 0.5em;
+    margin-bottom: 0.15em;
+  }
+  .bru-qo-badge {
+    font-size: 0.72em;
+    padding: 0.15em 0.5em;
+    flex-shrink: 0;
+  }
+  .bru-qo-name {
+    font-weight: var(--font-medium);
+    color: var(--text-normal);
+  }
+  .bru-qo-url {
+    font-family: var(--font-monospace);
+    font-size: 0.82em;
+    color: var(--text-muted);
+    margin-bottom: 0.1em;
+    word-break: break-all;
+  }
+  .bru-qo-path {
+    font-size: 0.75em;
+    color: var(--text-faint);
+    word-break: break-all;
+  }
+`;
+
 export function registerBruViewLeafStyles(plugin: BrunetPlugin): void {
   const style = document.createElement("style");
   style.id = "brunet-bru-view-leaf";
-  style.textContent = BRU_VIEW_LEAF_STYLES;
+  style.textContent = BRU_VIEW_LEAF_STYLES + BRU_QUICK_OPEN_STYLES;
   document.head.appendChild(style);
   plugin.register(() => style.remove());
 }

@@ -21,6 +21,7 @@ import { CollectionView, COLLECTION_VIEW_TYPE } from "./collectionView";
 import { ServiceView, SERVICE_VIEW_TYPE } from "./serviceView";
 import { formatBruRunCommand } from "./bruCollection";
 import { isBrunoJsonFile } from "./bruJsonParser";
+import { BruQuickOpenModal } from "./bruQuickOpen";
 import {
   BrunetSettingTab,
   DEFAULT_SETTINGS,
@@ -90,23 +91,16 @@ export default class BrunetPlugin extends Plugin {
     this.registerEditorExtension(bruStreamLanguage.extension);
 
     // Ribbon icon
-    this.addRibbonIcon(BRUNO_ICON_ID, "Run Brunet Request", () => {
-      this.runBrunoRequestCommand();
+    this.addRibbonIcon("dog", "Search Bruno endpoints", () => {
+      new BruQuickOpenModal(this.app).open();
     });
 
     // Commands
     this.addCommand({
       id: "run-brunet-request",
-      name: "Run Brunet Request",
-      checkCallback: (checking: boolean) => {
-        const file = this.getActiveBruFile();
-        if (file) {
-          if (!checking) {
-            this.showRunNotice(file);
-          }
-          return true;
-        }
-        return false;
+      name: "Search Bruno endpoints",
+      callback: () => {
+        new BruQuickOpenModal(this.app).open();
       },
     });
 
@@ -235,29 +229,12 @@ export default class BrunetPlugin extends Plugin {
     return null;
   }
 
-  private runBrunoRequestCommand(): void {
-    const file = this.getActiveBruFile();
-    if (file) {
-      this.showRunNotice(file);
-    } else {
-      new Notice("No .bru file is currently active.");
-    }
-  }
-
   async loadSettings(): Promise<void> {
     this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
   }
 
   async saveSettings(): Promise<void> {
     await this.saveData(this.settings);
-  }
-
-  private showRunNotice(file: TFile): void {
-    const cmd = formatBruRunCommand(file.path, this.settings.activeEnvironment);
-    new Notice(
-      `Use Brunet CLI to run:\n${cmd}`,
-      6000,
-    );
   }
 
   private copyRunCommand(file: TFile): void {

@@ -108,6 +108,7 @@ export interface RunnableRequestFile {
   path: string;
   name: string;
   method: string;
+  url: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -257,6 +258,7 @@ export async function listRunnableRequestFiles(
           path: file.path,
           name: file.basename,
           method: parsed.request.method || "?",
+          url: parsed.request.url || "",
         });
       } else {
         const parsed = parseBruFile(content);
@@ -265,6 +267,7 @@ export async function listRunnableRequestFiles(
           path: file.path,
           name: file.basename,
           method: parsed.request.method || "?",
+          url: parsed.request.url || "",
         });
       }
     } catch {
