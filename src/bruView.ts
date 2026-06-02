@@ -46,7 +46,6 @@ import {
   loadCollectionVars,
   loadEnvironmentVars,
   saveEnvironmentVars,
-  findCollectionRoot,
   type EnvironmentVarsState,
 } from "./bruCollection";
 import {
@@ -1438,13 +1437,14 @@ export class BruFileView extends TextFileView {
   private async renderEnvironmentEditor(container: HTMLElement): Promise<void> {
     if (!this.file) return;
     const vault = this.app.vault;
-    const collectionRoot = findCollectionRoot(this.file, vault);
-    if (collectionRoot === null) return;
+    // The env file lives at <localRoot>/environments/<name>.<ext>.
+    // Use the grandparent as localRoot so we resolve this specific file directly.
+    const localRoot = this.file.parent?.parent?.path ?? "";
     const envName = this.file.basename;
 
     let state: EnvironmentVarsState;
     try {
-      state = await loadEnvironmentVars(vault, collectionRoot, envName);
+      state = await loadEnvironmentVars(vault, localRoot, envName);
     } catch {
       container.createEl("p", { text: "Could not load environment variables.", cls: "bru-manifest-desc" });
       return;
@@ -1464,7 +1464,7 @@ export class BruFileView extends TextFileView {
       onChange: () => {
         if (envSaveTimer !== null) window.clearTimeout(envSaveTimer);
         envSaveTimer = window.setTimeout(() => {
-          void saveEnvironmentVars(vault, collectionRoot, envName, entries, state);
+          void saveEnvironmentVars(vault, localRoot, envName, entries, state);
           this.plugin.notifyVarsUpdated();
           envSaveTimer = null;
         }, 400);

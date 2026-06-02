@@ -47,7 +47,7 @@ export async function mountEnvironmentTab(
     return null;
   }
 
-  const envNames = listEnvironmentNames(vault, collectionRoot);
+  const envNames = listEnvironmentNames(vault, collectionRoot, requestFile.parent?.path);
   if (envNames.length === 0) {
     panel.createEl("p", {
       text: "No environments in environments/.",
@@ -157,7 +157,7 @@ export async function mountEnvironmentTab(
         return;
       }
 
-      envVarsState = await loadEnvironmentVars(vault, collectionRoot, envName);
+      envVarsState = await loadEnvironmentVars(vault, collectionRoot, envName, requestFile.parent?.path);
       liveEntries = envVarsState.entries.map((e) => ({ ...e }));
 
       renderEditableKeyValueTable(varsHost, liveEntries, {

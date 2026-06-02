@@ -112,20 +112,42 @@ function hasCollectionMarker(vault: Vault, folderPath: string): boolean {
   );
 }
 
-export function listEnvironmentNames(vault: Vault, collectionRoot: string): string[] {
-  const envFolderPath = collectionRoot
-    ? `${collectionRoot}/environments`
-    : "environments";
+/**
+ * Return an ordered list of folder paths from `startFolder` up to (and
+ * including) `collectionRoot`.  Stops early if the walk reaches the vault
+ * root without hitting `collectionRoot`.
+ */
+function foldersFromTo(startFolder: string, collectionRoot: string): string[] {
+  const folders: string[] = [];
+  let current: string | null = startFolder;
+  while (current !== null) {
+    folders.push(current);
+    if (current === collectionRoot) break;
+    const lastSlash = current.lastIndexOf("/");
+    current = lastSlash >= 0 ? current.slice(0, lastSlash) : null;
+  }
+  return folders;
+}
 
-  return vault
-    .getFiles()
-    .filter(
-      (f) =>
-        (f.extension === "bru" || f.extension === "yml" || f.extension === "yaml") &&
-        f.parent?.path === envFolderPath,
-    )
-    .map((f) => f.basename)
-    .sort((a, b) => a.localeCompare(b));
+/**
+ * List all environment names visible from a request file's folder.
+ * Scans every `environments/` directory between `startFolder` and
+ * `collectionRoot` so that sub-collection environments are included.
+ */
+export function listEnvironmentNames(vault: Vault, collectionRoot: string, startFolder?: string): string[] {
+  const folders = foldersFromTo(startFolder ?? collectionRoot, collectionRoot);
+  const names = new Set<string>();
+  for (const folder of folders) {
+    const envFolderPath = folder ? `${folder}/environments` : "environments";
+    vault.getFiles()
+      .filter(
+        (f) =>
+          (f.extension === "bru" || f.extension === "yml" || f.extension === "yaml") &&
+          f.parent?.path === envFolderPath,
+      )
+      .forEach((f) => names.add(f.basename));
+  }
+  return Array.from(names).sort((a, b) => a.localeCompare(b));
 }
 
 function isEnvironmentBruPath(filePath: string): boolean {
@@ -144,17 +166,26 @@ export function getEnvironmentBruPath(
   return `${envFolder}/${envName}.bru`;
 }
 
-/** Resolve the actual path of an environment file, trying .bru then .yml/.yaml. */
+/**
+ * Resolve the actual path of an environment file.
+ * Walks up from `startFolder` (the request file's parent) to `collectionRoot`,
+ * returning the first `environments/<envName>.<ext>` found — i.e. the closest one.
+ */
 function resolveEnvironmentFilePath(
   vault: Vault,
   collectionRoot: string,
   envName: string,
+  startFolder?: string,
 ): string {
-  const envFolder = collectionRoot ? `${collectionRoot}/environments` : "environments";
-  for (const ext of ["bru", "yml", "yaml"]) {
-    const path = `${envFolder}/${envName}.${ext}`;
-    if (vault.getAbstractFileByPath(path) instanceof TFile) return path;
+  const folders = foldersFromTo(startFolder ?? collectionRoot, collectionRoot);
+  for (const folder of folders) {
+    const envFolder = folder ? `${folder}/environments` : "environments";
+    for (const ext of ["bru", "yml", "yaml"]) {
+      const path = `${envFolder}/${envName}.${ext}`;
+      if (vault.getAbstractFileByPath(path) instanceof TFile) return path;
+    }
   }
+  const envFolder = collectionRoot ? `${collectionRoot}/environments` : "environments";
   return `${envFolder}/${envName}.bru`;
 }
 
@@ -168,8 +199,9 @@ export async function loadEnvironmentVars(
   vault: Vault,
   collectionRoot: string,
   envName: string,
+  startFolder?: string,
 ): Promise<EnvironmentVarsState> {
-  const path = resolveEnvironmentFilePath(vault, collectionRoot, envName);
+  const path = resolveEnvironmentFilePath(vault, collectionRoot, envName, startFolder);
   const file = vault.getAbstractFileByPath(path);
   if (!(file instanceof TFile)) {
     return { file: null, entries: [], raw: "" };
@@ -283,7 +315,7 @@ export async function loadCollectionVars(
     if (options?.envOverrides !== undefined) {
       layers.push(options.envOverrides);
     } else {
-      const envPath = resolveEnvironmentFilePath(vault, collectionRoot, environmentName);
+      const envPath = resolveEnvironmentFilePath(vault, collectionRoot, environmentName, requestFile.parent?.path);
       layers.push(await readVarsFromPath(vault, envPath));
     }
   }
