@@ -1,6 +1,6 @@
 {
   "name": "brunet",
-  "version": "0.3.7",
+  "version": "0.4.0",
   "description": "Bruno API format support — view, edit, and run .bru HTTP requests in your vault.",
   "main": "main.js",
   "scripts": {
