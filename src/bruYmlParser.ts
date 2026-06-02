@@ -440,6 +440,31 @@ export function updateYmlFromParsed(raw: string, parsed: BruFile): string {
   return stringifyYaml(doc);
 }
 
+/** Parse a Bruno YAML environment file (`vars:\n  key: value`) into BruKeyValue entries. */
+export function parseYmlEnvironmentVars(content: string): BruKeyValue[] {
+  try {
+    const doc = parseYaml(content) as { vars?: Record<string, unknown> } | null;
+    if (!doc?.vars || typeof doc.vars !== "object") return [];
+    return Object.entries(doc.vars).map(([key, value]) => ({
+      key,
+      value: String(value ?? ""),
+      enabled: true,
+    }));
+  } catch {
+    return [];
+  }
+}
+
+/** Serialise BruKeyValue entries back to a Bruno YAML environment file. */
+export function serializeYmlEnvironmentFile(entries: BruKeyValue[]): string {
+  const vars: Record<string, string> = {};
+  for (const e of entries) {
+    const key = e.key.trim();
+    if (e.enabled && key) vars[key] = e.value;
+  }
+  return stringifyYaml({ vars });
+}
+
 export function parseBruYml(content: string): BruFile {
   let doc: BrunoYmlDoc = {};
   try {

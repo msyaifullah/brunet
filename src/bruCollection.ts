@@ -12,7 +12,12 @@ import {
   parseBruFile,
   serializeEnvironmentFile,
 } from "./bruParser";
-import { isFolderManifestYmlFile, isAnyCollectionManifestYmlFile } from "./bruYmlParser";
+import {
+  isFolderManifestYmlFile,
+  isAnyCollectionManifestYmlFile,
+  parseYmlEnvironmentVars,
+  serializeYmlEnvironmentFile,
+} from "./bruYmlParser";
 import { isBrunoJsonFile } from "./bruJsonParser";
 
 export function isEnvironmentFile(file: TFile): boolean {
@@ -116,7 +121,7 @@ export function listEnvironmentNames(vault: Vault, collectionRoot: string): stri
     .getFiles()
     .filter(
       (f) =>
-        f.extension === "bru" &&
+        (f.extension === "bru" || f.extension === "yml" || f.extension === "yaml") &&
         f.parent?.path === envFolderPath,
     )
     .map((f) => f.basename)
@@ -127,11 +132,29 @@ function isEnvironmentBruPath(filePath: string): boolean {
   return /(?:^|\/)environments\/[^/]+\.bru$/i.test(filePath);
 }
 
+function isEnvironmentYmlPath(filePath: string): boolean {
+  return /(?:^|\/)environments\/[^/]+\.ya?ml$/i.test(filePath);
+}
+
 export function getEnvironmentBruPath(
   collectionRoot: string,
   envName: string,
 ): string {
   const envFolder = collectionRoot ? `${collectionRoot}/environments` : "environments";
+  return `${envFolder}/${envName}.bru`;
+}
+
+/** Resolve the actual path of an environment file, trying .bru then .yml/.yaml. */
+function resolveEnvironmentFilePath(
+  vault: Vault,
+  collectionRoot: string,
+  envName: string,
+): string {
+  const envFolder = collectionRoot ? `${collectionRoot}/environments` : "environments";
+  for (const ext of ["bru", "yml", "yaml"]) {
+    const path = `${envFolder}/${envName}.${ext}`;
+    if (vault.getAbstractFileByPath(path) instanceof TFile) return path;
+  }
   return `${envFolder}/${envName}.bru`;
 }
 
@@ -146,12 +169,15 @@ export async function loadEnvironmentVars(
   collectionRoot: string,
   envName: string,
 ): Promise<EnvironmentVarsState> {
-  const path = getEnvironmentBruPath(collectionRoot, envName);
+  const path = resolveEnvironmentFilePath(vault, collectionRoot, envName);
   const file = vault.getAbstractFileByPath(path);
   if (!(file instanceof TFile)) {
     return { file: null, entries: [], raw: "" };
   }
   const raw = await vault.read(file);
+  if (isEnvironmentYmlPath(path)) {
+    return { file, entries: parseYmlEnvironmentVars(raw), raw };
+  }
   const parsed = parseBruFile(raw);
   return { file, entries: getEnvironmentVarEntries(parsed), raw };
 }
@@ -163,22 +189,22 @@ export async function saveEnvironmentVars(
   entries: BruKeyValue[],
   existing?: EnvironmentVarsState,
 ): Promise<TFile> {
-  const path = getEnvironmentBruPath(collectionRoot, envName);
-  const content = serializeEnvironmentFile(entries);
-
   if (existing?.file) {
+    const content = isEnvironmentYmlPath(existing.file.path)
+      ? serializeYmlEnvironmentFile(entries)
+      : serializeEnvironmentFile(entries);
     await vault.modify(existing.file, content);
     return existing.file;
   }
 
+  const path = getEnvironmentBruPath(collectionRoot, envName);
+  const content = serializeEnvironmentFile(entries);
   const folderPath = collectionRoot
     ? `${collectionRoot}/environments`
     : "environments";
-  const folder = vault.getAbstractFileByPath(folderPath);
-  if (!folder) {
+  if (!vault.getAbstractFileByPath(folderPath)) {
     await vault.createFolder(folderPath);
   }
-
   return vault.create(path, content);
 }
 
@@ -206,9 +232,13 @@ async function readVarsFromPath(
   const file = vault.getAbstractFileByPath(filePath);
   if (!(file instanceof TFile)) return {};
   try {
-    const content = isEnvironmentBruPath(filePath)
+    const isEnvFile = isEnvironmentBruPath(filePath) || isEnvironmentYmlPath(filePath);
+    const content = isEnvFile
       ? await vault.read(file)
       : await vault.cachedRead(file);
+    if (isEnvironmentYmlPath(filePath)) {
+      return varsToRecord(parseYmlEnvironmentVars(content));
+    }
     const parsed = parseBruFile(content);
     const entries = isEnvironmentBruPath(filePath)
       ? getEnvironmentVarEntries(parsed)
@@ -253,7 +283,7 @@ export async function loadCollectionVars(
     if (options?.envOverrides !== undefined) {
       layers.push(options.envOverrides);
     } else {
-      const envPath = getEnvironmentBruPath(collectionRoot, environmentName);
+      const envPath = resolveEnvironmentFilePath(vault, collectionRoot, environmentName);
       layers.push(await readVarsFromPath(vault, envPath));
     }
   }
