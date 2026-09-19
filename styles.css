@@ -1,0 +1,1295 @@
+/* Brunet plugin styles — loaded by Obsidian from styles.css */
+
+  .workspace-leaf-content[data-type="bru-view"] {
+    --file-line-width: 100%;
+    --line-width: 100%;
+    --max-width: none;
+  }
+  .workspace-leaf-content[data-type="bru-view"] .view-content,
+  .workspace-leaf-content[data-type="bru-view"] .view-content > * {
+    max-width: none !important;
+    width: 100% !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+  }
+  .workspace-leaf-content[data-type="bru-view"] .cm-sizer,
+  .workspace-leaf-content[data-type="bru-view"] .cm-contentContainer,
+  .workspace-leaf-content[data-type="bru-view"] .markdown-source-view,
+  .workspace-leaf-content[data-type="bru-view"] .markdown-preview-sizer {
+    max-width: none !important;
+    width: 100% !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+  }
+  .workspace-leaf-content[data-type="bru-view"] .bru-view-content,
+  .workspace-leaf-content[data-type="bru-view"] .bru-view-root {
+    max-width: none !important;
+    width: 100% !important;
+    box-sizing: border-box;
+  }
+  .workspace-leaf-content[data-type="bru-view"] {
+    height: 100%;
+  }
+  .workspace-leaf-content[data-type="bru-view"] .view-content {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .workspace-leaf-content[data-type="bru-view"] .bru-view-content {
+    flex: 1;
+    min-height: 0;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .bru-qo-top {
+    display: flex;
+    align-items: center;
+    gap: 0.5em;
+    margin-bottom: 0.15em;
+  }
+  .bru-qo-badge {
+    font-size: 0.72em;
+    padding: 0.15em 0.5em;
+    flex-shrink: 0;
+  }
+  .bru-qo-name {
+    font-weight: var(--font-medium);
+    color: var(--text-normal);
+  }
+  .bru-qo-url {
+    font-family: var(--font-monospace);
+    font-size: 0.82em;
+    color: var(--text-muted);
+    margin-bottom: 0.1em;
+    word-break: break-all;
+  }
+  .bru-qo-path {
+    font-size: 0.75em;
+    color: var(--text-faint);
+    word-break: break-all;
+  }
+
+      .bru-view-root {
+        font-family: var(--font-interface);
+        width: 100%;
+        max-width: none;
+        min-width: 0;
+        box-sizing: border-box;
+        padding: var(--size-4-5);
+        color: var(--text-normal);
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        flex: 1;
+        min-height: 0;
+        height: 100%;
+      }
+      .bru-header {
+        display: flex;
+        align-items: center;
+        gap: 0.75em;
+        margin-bottom: 1.5em;
+        flex-shrink: 0;
+        padding: 1em 1.25em;
+        background: var(--background-secondary);
+        border-radius: 8px;
+        border-left: 4px solid var(--bru-method-color, #61affe);
+        flex-wrap: nowrap;
+      }
+      .bru-method-badge {
+        font-size: 0.85em;
+        font-weight: 700;
+        letter-spacing: 0.05em;
+        padding: 0.25em 0.65em;
+        border-radius: 4px;
+        background: var(--bru-method-color, #61affe);
+        color: #fff;
+        font-family: var(--font-monospace);
+        flex-shrink: 0;
+      }
+      .bru-method-select {
+        font-size: 0.85em;
+        font-weight: 700;
+        letter-spacing: 0.05em;
+        padding: 0.25em 1.75em 0.25em 0.65em;
+        border-radius: 4px;
+        border: none;
+        background: var(--bru-method-color, #61affe);
+        color: #fff;
+        font-family: var(--font-monospace);
+        flex-shrink: 0;
+        cursor: pointer;
+        appearance: none;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: right 0.45em center;
+      }
+      .bru-method-select:focus {
+        outline: 2px solid var(--interactive-accent);
+        outline-offset: 1px;
+      }
+      .bru-method-select option {
+        background: var(--background-primary);
+        color: var(--text-normal);
+      }
+      .bru-url {
+        font-family: var(--font-monospace);
+        font-size: 0.95em;
+        word-break: break-all;
+        color: var(--text-normal);
+        flex: 1;
+      }
+      .bru-url-input {
+        flex: 1;
+        min-width: 12em;
+        font-family: var(--font-monospace);
+        font-size: 0.95em;
+        padding: 0.35em 0.55em;
+        border-radius: 4px;
+        border: 1px solid var(--background-modifier-border);
+        background: var(--background-primary);
+        color: var(--text-normal);
+      }
+      .bru-url-input:focus {
+        border-color: var(--interactive-accent);
+        outline: none;
+      }
+      .bru-url-field-wrap {
+        flex: 1;
+        min-width: 12em;
+      }
+      .bru-url-field-wrap .bru-url-input {
+        width: 100%;
+        box-sizing: border-box;
+      }
+      .bru-param-resolved {
+        font-family: var(--font-monospace);
+        font-size: 0.78em;
+        color: var(--text-muted);
+        margin-top: 0.2em;
+        word-break: break-all;
+        line-height: 1.35;
+      }
+      .bru-param-resolved::before {
+        content: "→ ";
+        color: var(--text-faint);
+      }
+      .bru-params-hint {
+        font-size: 0.82em;
+        color: var(--text-muted);
+        margin: 0 0 1em;
+        line-height: 1.45;
+      }
+      .bru-field-input {
+        width: 100%;
+        font-family: var(--font-monospace);
+        font-size: 0.88em;
+        padding: 0.3em 0.45em;
+        border-radius: 4px;
+        border: 1px solid var(--background-modifier-border);
+        background: var(--background-primary);
+        color: var(--text-normal);
+        box-sizing: border-box;
+      }
+      .bru-field-input:focus {
+        border-color: var(--interactive-accent);
+        outline: none;
+      }
+      .bru-body-editor-toolbar {
+        display: flex;
+        align-items: center;
+        gap: var(--size-4-2);
+        margin-bottom: var(--size-4-2);
+        flex-shrink: 0;
+      }
+      .bru-body-editor-host {
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+      }
+      .bru-body-type-wrap {
+        display: flex;
+        align-items: center;
+        gap: var(--size-2-2);
+      }
+      .bru-body-type-label {
+        font-size: var(--font-ui-smaller);
+        color: var(--text-muted);
+      }
+      .bru-body-type-select {
+        font-size: var(--font-ui-small);
+        padding: var(--size-2-1) var(--size-4-2);
+        border-radius: var(--radius-s);
+        border: 1px solid var(--background-modifier-border);
+        background: var(--background-primary);
+        color: var(--text-normal);
+      }
+      .bru-body-type-readonly {
+        font-size: var(--font-ui-small);
+        font-weight: var(--font-medium);
+        color: var(--text-normal);
+      }
+      .bru-env-tab-toolbar {
+        display: flex;
+        align-items: center;
+        margin-bottom: var(--size-4-3);
+        flex-shrink: 0;
+      }
+      .bru-env-tab-vars {
+        flex: 1;
+        min-height: 0;
+      }
+      .bru-body-toolbar-actions {
+        display: flex;
+        align-items: center;
+        gap: var(--size-2-2);
+        margin-left: auto;
+        flex-shrink: 0;
+      }
+      .bru-body-toolbar-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: var(--size-4-4);
+        height: var(--size-4-4);
+        padding: 0;
+        border-radius: var(--radius-s);
+        color: var(--text-muted);
+      }
+      .bru-body-toolbar-btn:hover {
+        color: var(--interactive-accent);
+        background: var(--background-modifier-hover);
+      }
+      .bru-body-toolbar-btn svg {
+        width: var(--icon-m);
+        height: var(--icon-m);
+      }
+      .bru-body-cm-mount {
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+      }
+      .bru-body-cm-mount .cm-editor {
+        width: 100%;
+        flex: 1;
+        min-height: 0;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+      }
+      .bru-body-cm-mount .cm-scroller {
+        flex: 1;
+        min-height: 0;
+        overflow: auto;
+      }
+      .bru-kv-actions {
+        display: flex;
+        gap: var(--size-2-2);
+        margin-top: var(--size-4-2);
+      }
+      .bru-kv-table-editable td.bru-kv-enabled-cell {
+        width: 2em;
+      }
+      .bru-kv-table-editable td.bru-kv-action-cell {
+        width: 2.5em;
+        text-align: center;
+      }
+      .bru-kv-table-editable.bru-kv-table-no-enabled .bru-key {
+        width: 40%;
+      }
+      .bru-kv-remove {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: var(--size-2-2);
+        width: var(--size-4-6);
+        height: var(--size-4-6);
+        min-width: unset;
+        border: none;
+        background: transparent;
+        box-shadow: none;
+        color: var(--text-muted);
+        --icon-size: var(--icon-xs);
+      }
+      .bru-kv-remove:hover {
+        color: var(--text-error);
+        background: var(--background-modifier-hover);
+      }
+      .bru-kv-add {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: var(--size-2-2);
+        width: var(--size-4-6);
+        height: var(--size-4-6);
+        min-width: unset;
+        border: none;
+        background: transparent;
+        box-shadow: none;
+        color: var(--text-muted);
+        --icon-size: var(--icon-xs);
+      }
+      .bru-kv-add:hover {
+        color: var(--interactive-accent);
+        background: var(--background-modifier-hover);
+      }
+      .bru-kv-enabled {
+        width: 1em;
+        vertical-align: middle;
+      }
+      /*
+       * Use vertical-tab-nav-item for native tab chrome only — NOT
+       * vertical-tabs-container (its row flex puts content beside the nav).
+       */
+      .brunet-request-tabs {
+        margin-bottom: var(--size-4-4);
+        width: 100%;
+        min-width: 0;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        flex: 1;
+        min-height: 0;
+      }
+      .brunet-tab-nav {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: flex-end;
+        gap: 0;
+        width: 100%;
+        min-width: 0;
+        border-bottom: 1px solid var(--background-modifier-border);
+        flex-shrink: 0;
+      }
+      .brunet-tab-nav .vertical-tab-nav-item {
+        flex: 0 0 auto;
+        width: auto;
+        margin: 0;
+        padding: var(--size-4-2) var(--size-4-4);
+        border-radius: var(--radius-s) var(--radius-s) 0 0;
+        box-shadow: none;
+      }
+      .brunet-tab-body {
+        width: 100%;
+        min-width: 0;
+        min-height: 0;
+        flex: 1;
+        padding: var(--size-4-4);
+        box-sizing: border-box;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+      }
+      .brunet-request-tabs .brunet-tab-panel {
+        display: none;
+      }
+      .brunet-request-tabs .brunet-tab-panel.is-active {
+        display: flex;
+        flex-direction: column;
+        flex: 1;
+        min-height: 0;
+        overflow: auto;
+      }
+      .brunet-request-tabs .brunet-tab-panel[data-tab="body"].is-active {
+        overflow: hidden;
+      }
+      .bru-body-tab-content {
+        display: flex;
+        flex-direction: column;
+        flex: 1;
+        min-height: 0;
+        height: 100%;
+      }
+      .brunet-request-tabs .brunet-tab-count {
+        margin-left: var(--size-2-2);
+        color: var(--text-faint);
+        font-size: var(--font-ui-smaller);
+        font-weight: var(--font-normal);
+      }
+      .brunet-request-tabs .vertical-tab-nav-item.is-active .brunet-tab-count {
+        color: var(--text-muted);
+      }
+      .brunet-request-tabs .bru-kv-table-editable {
+        width: 100%;
+        table-layout: fixed;
+      }
+      .bru-tab-empty {
+        color: var(--text-muted);
+        font-style: italic;
+        font-size: var(--font-ui-small);
+      }
+      .bru-param-group {
+        margin-bottom: var(--size-4-4);
+      }
+      .bru-param-group:last-child {
+        margin-bottom: 0;
+      }
+      .bru-param-heading {
+        margin: 0 0 var(--size-4-2);
+        font-size: var(--font-ui-small);
+        font-weight: var(--font-semibold);
+        color: var(--text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+      }
+      .bru-more-sections details.bru-section {
+        margin-bottom: 0.5em;
+      }
+      .bru-manifest-hint {
+        flex-basis: 100%;
+        margin: 0.35em 0 0;
+        font-size: 0.82em;
+        color: var(--text-muted);
+        line-height: 1.4;
+      }
+      .bru-manifest-panel {
+        margin-top: var(--size-4-4);
+        padding: var(--size-4-5);
+        border: 1px solid var(--background-modifier-border);
+        border-radius: var(--radius-m);
+        background: var(--background-secondary);
+      }
+      .bru-manifest-title {
+        margin: 0 0 0.35em;
+        font-size: 1.15em;
+        font-weight: var(--font-semibold);
+        color: var(--text-normal);
+      }
+      .bru-manifest-desc {
+        margin: 0 0 1em;
+        color: var(--text-muted);
+        font-size: var(--font-ui-small);
+        line-height: 1.5;
+      }
+      .bru-manifest-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: var(--font-ui-small);
+      }
+      .bru-manifest-table th {
+        text-align: left;
+        width: 7em;
+        padding: 0.45em 0.75em 0.45em 0;
+        color: var(--text-muted);
+        font-weight: var(--font-medium);
+        vertical-align: top;
+      }
+      .bru-manifest-table td {
+        padding: 0.45em 0;
+        color: var(--text-normal);
+        word-break: break-word;
+      }
+      .bru-manifest-subsection {
+        margin-top: 1.25em;
+        padding-top: 1em;
+        border-top: 1px solid var(--background-modifier-border);
+      }
+      .bru-manifest-subtitle {
+        margin: 0 0 0.65em;
+        font-size: var(--font-ui-small);
+        font-weight: var(--font-semibold);
+        color: var(--text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+      }
+      .bru-manifest-list {
+        margin: 0;
+        padding-left: 1.25em;
+        font-size: var(--font-ui-small);
+        color: var(--text-normal);
+      }
+      .bru-manifest-docs {
+        white-space: pre-wrap;
+        font-size: var(--font-ui-small);
+      }
+      .bru-header-actions {
+        display: flex;
+        align-items: center;
+        gap: var(--size-2-2);
+        margin-left: auto;
+        flex-shrink: 0;
+      }
+      .bru-copy-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: var(--size-2-2);
+        width: var(--size-4-6);
+        height: var(--size-4-6);
+        border: none;
+        background: transparent;
+        box-shadow: none;
+        color: var(--text-muted);
+        --icon-size: var(--icon-xs);
+      }
+      .bru-copy-btn:hover {
+        color: var(--interactive-accent);
+        background: var(--background-modifier-hover);
+      }
+      details.bru-section {
+        margin-bottom: 0.75em;
+        border: 1px solid var(--background-modifier-border);
+        border-radius: 6px;
+        overflow: hidden;
+      }
+      details.bru-section[open] > summary {
+        border-bottom: 1px solid var(--background-modifier-border);
+      }
+      details.bru-section summary {
+        cursor: pointer;
+        padding: 0.55em 1em;
+        font-size: 0.88em;
+        font-weight: 600;
+        user-select: none;
+        background: var(--background-secondary);
+        list-style: none;
+        display: flex;
+        align-items: center;
+        gap: 0.5em;
+      }
+      details.bru-section summary::-webkit-details-marker { display: none; }
+      details.bru-section summary::before {
+        content: "▶";
+        font-size: 0.75em;
+        transition: transform 0.15s;
+        display: inline-block;
+        color: var(--text-muted);
+      }
+      details.bru-section[open] summary::before {
+        transform: rotate(90deg);
+      }
+      .bru-section-count {
+        margin-left: auto;
+        font-size: 0.78em;
+        color: var(--text-muted);
+        font-weight: 400;
+      }
+      .bru-section-body {
+        padding: 0.75em 1em;
+        background: var(--background-primary);
+      }
+      .bru-kv-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.88em;
+        font-family: var(--font-monospace);
+      }
+      .bru-kv-table tr {
+        border-bottom: 1px solid var(--background-modifier-border);
+      }
+      .bru-kv-table tr:last-child { border-bottom: none; }
+      .bru-kv-table td {
+        padding: 0.35em 0.5em;
+        vertical-align: top;
+      }
+      .bru-kv-table .bru-key {
+        color: var(--text-accent);
+        white-space: nowrap;
+        width: 40%;
+      }
+      .bru-kv-table .bru-value {
+        color: var(--text-normal);
+        word-break: break-all;
+      }
+      .bru-kv-table tr.bru-disabled {
+        opacity: 0.45;
+        text-decoration: line-through;
+      }
+      .bru-var-ref {
+        color: #e8a838;
+        background: rgba(232,168,56,0.12);
+        border-radius: 3px;
+        padding: 0 0.15em;
+      }
+      .bru-code-block {
+        background: var(--background-secondary);
+        border-radius: 4px;
+        padding: 0.75em 1em;
+        font-family: var(--font-monospace);
+        font-size: 0.85em;
+        white-space: pre-wrap;
+        overflow-x: auto;
+        color: var(--text-normal);
+        line-height: 1.55;
+      }
+      .bru-assert-op {
+        color: #49cc90;
+        font-weight: 600;
+        margin-left: 0.3em;
+      }
+      .bru-docs-body {
+        font-size: 0.9em;
+        line-height: 1.6;
+        white-space: pre-wrap;
+        color: var(--text-normal);
+      }
+      .bru-empty {
+        color: var(--text-muted);
+        font-style: italic;
+      }
+      .bru-section-icon {
+        font-size: 0.9em;
+      }
+      .bru-send-btn {
+        flex-shrink: 0;
+        cursor: pointer;
+        padding: 0.3em 0.9em;
+        border-radius: 4px;
+        border: none;
+        background: var(--interactive-accent);
+        color: #fff;
+        font-size: 0.82em;
+        font-weight: 600;
+        transition: opacity 0.15s;
+      }
+      .bru-send-btn:hover {
+        opacity: 0.88;
+      }
+      .bru-send-btn:disabled {
+        opacity: 0.45;
+        cursor: default;
+      }
+      .bru-loading {
+        color: var(--text-muted);
+        font-style: italic;
+        font-size: 0.88em;
+        padding: 0.75em 0;
+      }
+      .bru-console-section {
+        margin-bottom: var(--size-4-5);
+      }
+      .bru-console-section:last-child {
+        margin-bottom: 0;
+      }
+      .bru-console-heading {
+        margin: 0 0 var(--size-4-2);
+        font-size: var(--font-ui-small);
+        font-weight: var(--font-semibold);
+        color: var(--text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+      }
+      .bru-console-meta {
+        font-size: var(--font-ui-smaller);
+        color: var(--text-faint);
+        margin-bottom: var(--size-4-3);
+      }
+      .bru-console-req-line {
+        display: flex;
+        align-items: flex-start;
+        gap: var(--size-4-2);
+        margin-bottom: var(--size-4-3);
+        flex-wrap: wrap;
+      }
+      .bru-console-req-line .bru-method-badge {
+        flex-shrink: 0;
+        margin-top: 0.15em;
+      }
+      .bru-console-body-view {
+        margin-top: var(--size-2-2);
+      }
+      .bru-console-body-editor-host {
+        min-height: 12em;
+        max-height: 28em;
+      }
+      .bru-console-body-editor-host .bru-body-cm-mount {
+        flex: none;
+      }
+      .bru-console-body-editor-host .bru-body-cm-mount .cm-editor {
+        height: auto;
+        min-height: 12em;
+        max-height: 28em;
+        flex: none;
+      }
+      .bru-console-body-editor-host .bru-body-cm-mount .cm-scroller {
+        max-height: 28em;
+        overflow: auto;
+      }
+      .bru-console-url {
+        font-family: var(--font-monospace);
+        font-size: var(--font-ui-small);
+        word-break: break-all;
+        color: var(--text-normal);
+        flex: 1;
+        min-width: 0;
+      }
+      .bru-res-status-row {
+        display: flex;
+        align-items: center;
+        gap: 0.6em;
+        margin-bottom: 0.75em;
+        flex-wrap: wrap;
+      }
+      .bru-res-badge {
+        font-family: var(--font-monospace);
+        font-size: 0.9em;
+        font-weight: 700;
+        padding: 0.2em 0.6em;
+        border-radius: 4px;
+        color: #fff;
+      }
+      .bru-res-duration {
+        color: var(--text-muted);
+        font-size: 0.8em;
+        margin-left: auto;
+      }
+      .bru-res-error {
+        background: rgba(249,62,62,0.12);
+        border: 1px solid #f93e3e;
+        border-radius: 4px;
+        color: #f93e3e;
+        padding: 0.6em 0.9em;
+        font-size: 0.88em;
+        margin-bottom: 0.75em;
+        word-break: break-word;
+      }
+    
+
+      .brunet-col-container {
+        font-family: var(--font-interface);
+        color: var(--text-normal);
+        padding: 0.5em 0;
+      }
+      .brunet-col-empty {
+        color: var(--text-muted);
+        font-style: italic;
+        padding: 1em;
+        font-size: 0.85em;
+      }
+      .brunet-col-group {
+        margin-bottom: 0.25em;
+      }
+      .brunet-col-header {
+        display: flex;
+        align-items: center;
+        gap: 0.4em;
+        padding: 0.35em 0.75em;
+        cursor: pointer;
+        user-select: none;
+        font-size: 0.83em;
+        font-weight: 600;
+        color: var(--text-muted);
+        background: var(--background-secondary);
+        border-bottom: 1px solid var(--background-modifier-border);
+      }
+      .brunet-col-header:hover {
+        background: var(--background-modifier-hover);
+      }
+      .brunet-col-chevron {
+        font-size: 0.65em;
+        flex-shrink: 0;
+        color: var(--text-muted);
+      }
+      .brunet-col-folder-name {
+        flex: 1;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .brunet-col-badge {
+        font-size: 0.75em;
+        background: var(--background-modifier-border);
+        border-radius: 999px;
+        padding: 0.1em 0.45em;
+        color: var(--text-muted);
+        font-weight: 400;
+        flex-shrink: 0;
+      }
+      .brunet-col-files {
+        padding: 0.2em 0;
+      }
+      .brunet-col-file-row {
+        display: flex;
+        align-items: center;
+        gap: 0.4em;
+        padding: 0.25em 0.75em 0.25em 1.25em;
+        cursor: pointer;
+        font-size: 0.82em;
+        border-bottom: 1px solid var(--background-modifier-border);
+      }
+      .brunet-col-file-row:hover {
+        background: var(--background-modifier-hover);
+      }
+      .brunet-col-file-row:hover .brunet-col-run-btn {
+        visibility: visible;
+      }
+      .brunet-col-method-badge {
+        font-family: var(--font-monospace);
+        font-size: 0.72em;
+        font-weight: 700;
+        padding: 0.1em 0.35em;
+        border-radius: 3px;
+        background: #aaa;
+        color: #fff;
+        flex-shrink: 0;
+        letter-spacing: 0.03em;
+        min-width: 2.8em;
+        text-align: center;
+      }
+      .brunet-col-file-name {
+        flex: 1;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        color: var(--text-normal);
+      }
+      .brunet-col-run-btn {
+        visibility: hidden;
+        flex-shrink: 0;
+        background: transparent;
+        border: 1px solid var(--interactive-accent);
+        color: var(--interactive-accent);
+        border-radius: 3px;
+        padding: 0.1em 0.4em;
+        font-size: 0.75em;
+        cursor: pointer;
+        line-height: 1.4;
+        transition: background 0.12s;
+      }
+      .brunet-col-run-btn:hover {
+        background: var(--interactive-accent);
+        color: #fff;
+      }
+      .brunet-col-run-btn:disabled {
+        opacity: 0.6;
+        cursor: default;
+      }
+      .brunet-col-run-ok {
+        visibility: visible !important;
+        color: #49cc90;
+        border-color: #49cc90;
+      }
+      .brunet-col-run-err {
+        visibility: visible !important;
+        color: #f93e3e;
+        border-color: #f93e3e;
+      }
+    
+
+      .workspace-leaf-content[data-type="brunet-service"] .view-content {
+        height: 100%;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+      }
+      .brunet-flow-coming-soon {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        gap: 0.65em;
+        padding: 1.5em 1em;
+        min-height: 12em;
+        color: var(--text-muted);
+      }
+      .brunet-flow-coming-soon-icon {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 2.75em;
+        height: 2.75em;
+        border-radius: 999px;
+        background: var(--background-secondary);
+        border: 1px solid var(--background-modifier-border);
+        color: var(--text-muted);
+      }
+      .brunet-flow-coming-soon-icon svg {
+        width: 1.35em;
+        height: 1.35em;
+      }
+      .brunet-flow-coming-soon-title {
+        margin: 0;
+        font-size: 0.95em;
+        font-weight: 700;
+        color: var(--text-normal);
+      }
+      .brunet-flow-coming-soon-lead {
+        margin: 0;
+        font-size: 0.82em;
+        line-height: 1.45;
+        max-width: 18em;
+      }
+      .brunet-flow-coming-soon-detail {
+        margin: 0;
+        font-size: 0.76em;
+        line-height: 1.4;
+        max-width: 20em;
+        opacity: 0.85;
+      }
+      .brunet-flow-coming-soon-actions {
+        display: flex;
+        align-items: center;
+        gap: 0.45em;
+        flex-wrap: wrap;
+        justify-content: center;
+        margin-top: 0.35em;
+      }
+      .brunet-flow-coming-soon-link {
+        font-size: 0.78em;
+        color: var(--interactive-accent);
+        text-decoration: none;
+      }
+      .brunet-flow-coming-soon-link:hover {
+        text-decoration: underline;
+      }
+      .brunet-flow-coming-soon-sep {
+        font-size: 0.78em;
+        opacity: 0.5;
+      }
+      .brunet-flow-root {
+        font-family: var(--font-interface);
+        color: var(--text-normal);
+        padding: 0.5em 0.75em 1em;
+        display: flex;
+        flex-direction: column;
+        gap: 0.75em;
+        flex: 1;
+        min-height: 0;
+        box-sizing: border-box;
+        overflow-y: auto;
+        overflow-x: hidden;
+      }
+      .brunet-flow-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.5em;
+      }
+      .brunet-flow-header-actions {
+        display: flex;
+        gap: 0.35em;
+        flex-shrink: 0;
+      }
+      .brunet-flow-title {
+        font-weight: 700;
+        font-size: 0.9em;
+      }
+      .brunet-flow-empty {
+        color: var(--text-muted);
+        font-size: 0.85em;
+        line-height: 1.5;
+      }
+      .brunet-flow-syntax-sample {
+        margin-top: 0.75em;
+        padding: 0.5em 0.65em;
+        background: var(--background-secondary);
+        border-radius: 4px;
+        font-family: var(--font-monospace);
+        font-size: 0.78em;
+        white-space: pre-wrap;
+        overflow-x: auto;
+      }
+      .brunet-flow-empty-actions {
+        margin-top: 0.75em;
+      }
+      .brunet-flow-tabs {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.35em;
+      }
+      .brunet-flow-tab {
+        border: 1px solid var(--background-modifier-border);
+        background: var(--background-secondary);
+        color: var(--text-muted);
+        border-radius: 4px;
+        padding: 0.2em 0.55em;
+        font-size: 0.78em;
+        cursor: pointer;
+        max-width: 100%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .brunet-flow-tab-active {
+        border-color: var(--interactive-accent);
+        color: var(--text-normal);
+        background: var(--background-modifier-hover);
+      }
+      .brunet-flow-editor {
+        display: flex;
+        flex-direction: column;
+        gap: 0.65em;
+      }
+      .brunet-flow-toolbar {
+        display: flex;
+        gap: 0.35em;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+      .brunet-flow-name-input {
+        flex: 1;
+        min-width: 6em;
+        font-size: 0.85em;
+        padding: 0.25em 0.45em;
+        border-radius: 4px;
+        border: 1px solid var(--background-modifier-border);
+        background: var(--background-primary);
+        color: var(--text-normal);
+      }
+      .brunet-flow-btn {
+        border: 1px solid var(--background-modifier-border);
+        background: var(--background-secondary);
+        color: var(--text-normal);
+        border-radius: 4px;
+        padding: 0.2em 0.55em;
+        font-size: 0.78em;
+        cursor: pointer;
+        white-space: nowrap;
+      }
+      .brunet-flow-btn:hover {
+        background: var(--background-modifier-hover);
+      }
+      .brunet-flow-btn:disabled {
+        opacity: 0.5;
+        cursor: default;
+      }
+      .brunet-flow-btn-accent {
+        border-color: var(--interactive-accent);
+        color: var(--interactive-accent);
+      }
+      .brunet-flow-btn-run {
+        border-color: #49cc90;
+        color: #49cc90;
+      }
+      .brunet-flow-btn-danger {
+        border-color: #f93e3e;
+        color: #f93e3e;
+      }
+      .brunet-flow-options,
+      .brunet-flow-checkbox {
+        font-size: 0.78em;
+        color: var(--text-muted);
+        display: flex;
+        align-items: center;
+        gap: 0.35em;
+      }
+      .brunet-flow-section-title {
+        font-size: 0.82em;
+        font-weight: 600;
+        color: var(--text-muted);
+      }
+      .brunet-flow-mermaid-section {
+        display: flex;
+        flex-direction: column;
+        gap: 0.4em;
+      }
+      .brunet-flow-mermaid-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.5em;
+      }
+      .brunet-flow-mermaid-hint {
+        margin: 0;
+        font-size: 0.75em;
+        color: var(--text-muted);
+        line-height: 1.4;
+      }
+      .brunet-flow-mermaid-input {
+        width: 100%;
+        min-height: 7em;
+        font-family: var(--font-monospace);
+        font-size: 0.76em;
+        line-height: 1.45;
+        padding: 0.45em 0.5em;
+        border-radius: 4px;
+        border: 1px solid var(--background-modifier-border);
+        background: var(--background-primary);
+        color: var(--text-normal);
+        resize: vertical;
+        box-sizing: border-box;
+      }
+      .brunet-flow-mermaid-diagram {
+        border: 1px solid var(--background-modifier-border);
+        border-radius: 6px;
+        padding: 0.35em 0.5em 0.5em;
+        background: var(--background-secondary);
+        display: flex;
+        flex-direction: column;
+        gap: 0.35em;
+      }
+      .brunet-flow-mermaid-zoom {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 0.3em;
+        flex-shrink: 0;
+      }
+      .brunet-flow-zoom-title {
+        font-size: 0.72em;
+        color: var(--text-muted);
+        margin-right: auto;
+      }
+      .brunet-flow-zoom-label {
+        font-size: 0.72em;
+        font-family: var(--font-monospace);
+        color: var(--text-muted);
+        min-width: 2.8em;
+        text-align: center;
+      }
+      .brunet-flow-zoom-reset {
+        font-size: 0.72em;
+        padding: 0.1em 0.4em;
+      }
+      .brunet-flow-mermaid-viewport {
+        overflow: auto;
+        min-height: 4em;
+        max-height: 16em;
+        border-radius: 4px;
+        background: var(--background-primary);
+      }
+      .brunet-flow-mermaid-viewport .brunet-flow-mermaid-svg {
+        display: inline-block;
+        transform-origin: top left;
+        transform: scale(var(--brunet-diagram-zoom, 1));
+        transition: transform 0.12s ease;
+        padding: 0.35em;
+      }
+      .brunet-flow-mermaid-viewport svg {
+        height: auto;
+        display: block;
+      }
+      .brunet-flow-mermaid-error,
+      .brunet-flow-parse-error {
+        margin: 0;
+        font-size: 0.76em;
+        color: #f93e3e;
+      }
+      .brunet-flow-mermaid-viewport .brunet-mmd-ok .label rect,
+      .brunet-flow-mermaid-viewport .brunet-mmd-ok rect {
+        stroke: #49cc90 !important;
+        stroke-width: 2px !important;
+      }
+      .brunet-flow-mermaid-viewport .brunet-mmd-err .label rect,
+      .brunet-flow-mermaid-viewport .brunet-mmd-err rect {
+        stroke: #f93e3e !important;
+        stroke-width: 2px !important;
+      }
+      .brunet-flow-mermaid-viewport .brunet-mmd-skipped .label rect,
+      .brunet-flow-mermaid-viewport .brunet-mmd-skipped rect {
+        opacity: 0.45;
+      }
+      .brunet-flow-files-hint {
+        font-size: 0.72em;
+        color: var(--text-muted);
+        line-height: 1.4;
+      }
+      .brunet-flow-files-label {
+        font-weight: 600;
+      }
+      .brunet-flow-files-list {
+        word-break: break-word;
+      }
+      .brunet-flow-files-empty {
+        margin: 0;
+        font-style: italic;
+      }
+      .brunet-flow-log-host {
+        border-top: 1px solid var(--background-modifier-border);
+        padding-top: 0.5em;
+        display: flex;
+        flex-direction: column;
+        gap: 0.35em;
+      }
+      .brunet-flow-log-title {
+        font-size: 0.78em;
+        font-weight: 600;
+        color: var(--text-muted);
+      }
+      .brunet-flow-log-entry {
+        border: 1px solid var(--background-modifier-border);
+        border-radius: 4px;
+        padding: 0.35em 0.45em;
+        font-size: 0.76em;
+      }
+      .brunet-flow-log-skipped {
+        opacity: 0.75;
+      }
+      .brunet-flow-log-head {
+        display: flex;
+        align-items: center;
+        gap: 0.35em;
+      }
+      .brunet-flow-log-label {
+        flex: 1;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .brunet-flow-log-badge {
+        font-family: var(--font-monospace);
+        font-weight: 700;
+        font-size: 0.92em;
+      }
+      .brunet-flow-log-badge-ok { color: #49cc90; }
+      .brunet-flow-log-badge-err { color: #f93e3e; }
+      .brunet-flow-log-badge-muted { color: var(--text-muted); }
+      .brunet-flow-log-duration {
+        color: var(--text-muted);
+        font-size: 0.9em;
+      }
+      .brunet-flow-log-detail,
+      .brunet-flow-log-error {
+        margin: 0.25em 0 0;
+        color: var(--text-muted);
+      }
+      .brunet-flow-log-error { color: #f93e3e; }
+      .brunet-flow-log-body {
+        margin: 0.25em 0 0;
+        padding: 0.35em;
+        background: var(--background-primary);
+        border-radius: 3px;
+        font-family: var(--font-monospace);
+        font-size: 0.9em;
+        white-space: pre-wrap;
+        word-break: break-word;
+        max-height: 6em;
+        overflow: auto;
+      }
+      .brunet-flow-log-stopped {
+        font-size: 0.78em;
+        color: #f93e3e;
+        font-weight: 600;
+      }
+    
+
+/* HTTP method colors (used via .bru-method-GET, etc.) */
+.bru-method-GET { --bru-method-color: #61affe; }
+.bru-method-POST { --bru-method-color: #49cc90; }
+.bru-method-PUT { --bru-method-color: #fca130; }
+.bru-method-PATCH { --bru-method-color: #50e3c2; }
+.bru-method-DELETE { --bru-method-color: #f93e3e; }
+.bru-method-HEAD { --bru-method-color: #9012fe; }
+.bru-method-OPTIONS { --bru-method-color: #0d5aa7; }
+.bru-method-CONNECT { --bru-method-color: #e8c341; }
+.bru-method-TRACE { --bru-method-color: #e8c341; }
+.bru-method-FOLDER,
+.bru-method-COLLECTION,
+.bru-method-ENVIRONMENT,
+.bru-method-CONFIG { --bru-method-color: #888888; }
+.bru-method-UNKNOWN { --bru-method-color: #aaaaaa; }
+
+.bru-res-badge-ok { background: #49cc90; }
+.bru-res-badge-redirect { background: #61affe; }
+.bru-res-badge-client { background: #fca130; }
+.bru-res-badge-server { background: #f93e3e; }
+.bru-res-badge-unknown { background: #aaaaaa; }
+
+.brunet-col-files.is-collapsed {
+  display: none;
+}
+
+.brunet-col-method-badge {
+  background: var(--bru-method-color, #aaa);
+}
+
+.bru-qo-badge {
+  background: var(--bru-method-color, #61affe);
+}

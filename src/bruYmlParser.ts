@@ -447,7 +447,14 @@ export function parseYmlEnvironmentVars(content: string): BruKeyValue[] {
     if (!doc?.vars || typeof doc.vars !== "object") return [];
     return Object.entries(doc.vars).map(([key, value]) => ({
       key,
-      value: String(value ?? ""),
+      value:
+        typeof value === "string" ||
+        typeof value === "number" ||
+        typeof value === "boolean"
+          ? String(value)
+          : value == null
+            ? ""
+            : JSON.stringify(value),
       enabled: true,
     }));
   } catch {

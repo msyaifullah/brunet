@@ -609,6 +609,10 @@ function patchMethodSection(raw: string, request: BruRequest): string {
   return patchSectionContent(raw, methodLower, contentLines);
 }
 
+function trimTrailingWhitespace(text: string): string {
+  return text.replace(/\s+$/, "");
+}
+
 function patchSectionContent(
   raw: string,
   sectionName: string,
@@ -627,7 +631,7 @@ function patchSectionContent(
   }
 
   const block = [sectionName + " {", ...contentLines, "}"];
-  const trimmed = raw.trimEnd();
+  const trimmed = trimTrailingWhitespace(raw);
   return trimmed ? `${trimmed}\n\n${block.join("\n")}\n` : `${block.join("\n")}\n`;
 }
 
@@ -776,21 +780,45 @@ function patchFreeformSectionContent(
   }
 
   const block = [`${sectionName} {`, ...contentLines, "}"];
-  const trimmed = raw.trimEnd();
+  const trimmed = trimTrailingWhitespace(raw);
   return trimmed ? `${trimmed}\n\n${block.join("\n")}\n` : `${block.join("\n")}\n`;
 }
 
+const METHOD_COLORS: Record<string, string> = {
+  GET: "#61affe",
+  POST: "#49cc90",
+  PUT: "#fca130",
+  PATCH: "#50e3c2",
+  DELETE: "#f93e3e",
+  HEAD: "#9012fe",
+  OPTIONS: "#0d5aa7",
+  CONNECT: "#e8c341",
+  TRACE: "#e8c341",
+};
+
+const METHOD_CLASS_NAMES = new Set([
+  ...Object.keys(METHOD_COLORS),
+  "FOLDER",
+  "COLLECTION",
+  "ENVIRONMENT",
+  "CONFIG",
+]);
+
 export function getMethodColor(method: string): string {
-  const colors: Record<string, string> = {
-    GET: "#61affe",
-    POST: "#49cc90",
-    PUT: "#fca130",
-    PATCH: "#50e3c2",
-    DELETE: "#f93e3e",
-    HEAD: "#9012fe",
-    OPTIONS: "#0d5aa7",
-    CONNECT: "#e8c341",
-    TRACE: "#e8c341",
-  };
-  return colors[method.toUpperCase()] ?? "#aaa";
+  return METHOD_COLORS[method.toUpperCase()] ?? "#aaa";
+}
+
+/** CSS class that sets `--bru-method-color` for a method or manifest kind. */
+export function methodModifierClass(method: string): string {
+  const upper = method.toUpperCase();
+  if (METHOD_CLASS_NAMES.has(upper)) return `bru-method-${upper}`;
+  return "bru-method-UNKNOWN";
+}
+
+export function statusBadgeClass(status: number): string {
+  if (status >= 200 && status < 300) return "bru-res-badge-ok";
+  if (status >= 300 && status < 400) return "bru-res-badge-redirect";
+  if (status >= 400 && status < 500) return "bru-res-badge-client";
+  if (status >= 500) return "bru-res-badge-server";
+  return "bru-res-badge-unknown";
 }

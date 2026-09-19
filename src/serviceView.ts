@@ -61,13 +61,10 @@ export class ServiceView extends ItemView {
   }
 
   async onOpen(): Promise<void> {
-    this.injectStyles();
     this.registerEvent(this.app.vault.on("create", () => void this.refresh()));
     this.registerEvent(this.app.vault.on("delete", () => void this.refresh()));
     this.registerEvent(this.app.vault.on("rename", () => void this.refresh()));
-    this.registerEvent(
-      this.plugin.onEnvironmentChange(() => void this.refresh()),
-    );
+    this.register(this.plugin.onEnvironmentChange(() => void this.refresh()));
     await this.refresh();
   }
 
@@ -78,11 +75,11 @@ export class ServiceView extends ItemView {
     }
 
     this.requestFiles = await listRunnableRequestFiles(this.app.vault);
-    for (const flow of this.plugin.settings.flows) {
+    for (const flow of this.plugin.brunetSettings.flows) {
       ensureFlowMermaid(flow);
       syncFlowFromMermaid(flow, this.requestFiles);
     }
-    const flows = this.plugin.settings.flows;
+    const flows = this.plugin.brunetSettings.flows;
     if (flows.length && !this.selectedFlowId) {
       this.selectedFlowId = flows[0].id;
     }
@@ -103,9 +100,8 @@ export class ServiceView extends ItemView {
     this.diagramRenderGen++;
     this.diagramHost = null;
 
-    this.injectStyles();
 
-    const contentArea = this.containerEl.children[1] as HTMLElement;
+    const contentArea = this.contentEl;
     contentArea.empty();
 
     if (!FEATURE_FLAGS.FLOW_PANEL) {
@@ -116,7 +112,7 @@ export class ServiceView extends ItemView {
     const root = contentArea.createDiv({ cls: "brunet-flow-root" });
 
     const header = root.createDiv({ cls: "brunet-flow-header" });
-    header.createEl("span", { text: "Flows", cls: "brunet-flow-title" });
+    header.createSpan({ text: "Flows", cls: "brunet-flow-title" });
     const headerActions = header.createDiv({ cls: "brunet-flow-header-actions" });
     const sampleBtn = headerActions.createEl("button", {
       text: "Sample",
@@ -129,7 +125,7 @@ export class ServiceView extends ItemView {
     });
     newBtn.addEventListener("click", () => void this.addFlow());
 
-    const flows = this.plugin.settings.flows;
+    const flows = this.plugin.brunetSettings.flows;
 
     if (flows.length === 0) {
       const empty = root.createDiv({ cls: "brunet-flow-empty" });
@@ -200,7 +196,7 @@ export class ServiceView extends ItemView {
     issueLink.target = "_blank";
     issueLink.rel = "noopener noreferrer";
 
-    actions.createEl("span", {
+    actions.createSpan({
       cls: "brunet-flow-coming-soon-sep",
       text: "·",
     });
@@ -270,7 +266,7 @@ export class ServiceView extends ItemView {
       this.render();
     });
 
-    const hint = mermaidSection.createEl("p", {
+    mermaidSection.createEl("p", {
       cls: "brunet-flow-mermaid-hint",
       text: "Request s0[\"file.bru\"] · branch c0{s0.status eq 200} with |yes|/|no| · loop s_page -->|loop max 3| s_page",
     });
@@ -342,7 +338,7 @@ export class ServiceView extends ItemView {
         text: "Available: ",
         cls: "brunet-flow-files-label",
       });
-      const list = filesHint.createEl("span", { cls: "brunet-flow-files-list" });
+      const list = filesHint.createSpan({ cls: "brunet-flow-files-list" });
       list.textContent = this.requestFiles
         .slice(0, 8)
         .map((f) => f.path)
@@ -373,11 +369,11 @@ export class ServiceView extends ItemView {
   }
 
   private applyDiagramZoom(viewport: HTMLElement): void {
-    const svgWrap = viewport.querySelector(
+    const svgWrap = viewport.querySelector<HTMLElement>(
       ".brunet-flow-mermaid-svg",
-    ) as HTMLElement | null;
+    );
     if (svgWrap) {
-      svgWrap.style.transform = `scale(${this.diagramZoom})`;
+      svgWrap.setCssProps({ "--brunet-diagram-zoom": String(this.diagramZoom) });
     }
 
     const panel = viewport.closest(".brunet-flow-mermaid-diagram");
@@ -475,21 +471,21 @@ export class ServiceView extends ItemView {
 
   private async addFlow(name?: string): Promise<void> {
     const flow = createDefaultFlow(
-      name ?? `Flow ${this.plugin.settings.flows.length + 1}`,
+      name ?? `Flow ${this.plugin.brunetSettings.flows.length + 1}`,
     );
     this.applySampleToFlow(flow);
-    this.plugin.settings.flows.push(flow);
+    this.plugin.brunetSettings.flows.push(flow);
     this.selectedFlowId = flow.id;
     await this.persistFlows();
     this.render();
   }
 
   private async deleteFlow(flowId: string): Promise<void> {
-    this.plugin.settings.flows = this.plugin.settings.flows.filter(
+    this.plugin.brunetSettings.flows = this.plugin.brunetSettings.flows.filter(
       (f) => f.id !== flowId,
     );
     if (this.selectedFlowId === flowId) {
-      this.selectedFlowId = this.plugin.settings.flows[0]?.id ?? null;
+      this.selectedFlowId = this.plugin.brunetSettings.flows[0]?.id ?? null;
     }
     await this.persistFlows();
     this.render();
@@ -505,9 +501,9 @@ export class ServiceView extends ItemView {
   ): Promise<void> {
     if (this.running) return;
 
-    const textarea = this.containerEl.querySelector(
+    const textarea = this.contentEl.querySelector<HTMLTextAreaElement>(
       ".brunet-flow-mermaid-input",
-    ) as HTMLTextAreaElement | null;
+    );
     if (textarea) {
       flow.mermaid = textarea.value;
     }
@@ -522,12 +518,12 @@ export class ServiceView extends ItemView {
     runBtn.disabled = true;
     runBtn.textContent = "Running…";
 
-    const logHost = this.containerEl.querySelector(
+    const logHost = this.contentEl.querySelector<HTMLElement>(
       `[data-flow-log="${flow.id}"]`,
-    ) as HTMLElement | null;
+    );
     if (logHost) {
       logHost.empty();
-      logHost.createEl("div", {
+      logHost.createDiv({
         text: "Running flow…",
         cls: "brunet-flow-log-title",
       });
@@ -559,7 +555,7 @@ export class ServiceView extends ItemView {
       const result = await runFlow(
         flow,
         this.app.vault,
-        this.plugin.settings.activeEnvironment,
+        this.plugin.brunetSettings.activeEnvironment,
         appendLog,
       );
 
@@ -635,397 +631,4 @@ export class ServiceView extends ItemView {
     }
   }
 
-  private injectStyles(): void {
-    if (this.containerEl.querySelector("style.brunet-flow-styles")) return;
-
-    const style = this.containerEl.createEl("style");
-    style.addClass("brunet-flow-styles");
-    style.textContent = `
-      .workspace-leaf-content[data-type="${SERVICE_VIEW_TYPE}"] .view-content {
-        height: 100%;
-        overflow: hidden;
-        display: flex;
-        flex-direction: column;
-      }
-      .brunet-flow-coming-soon {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        text-align: center;
-        gap: 0.65em;
-        padding: 1.5em 1em;
-        min-height: 12em;
-        color: var(--text-muted);
-      }
-      .brunet-flow-coming-soon-icon {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        width: 2.75em;
-        height: 2.75em;
-        border-radius: 999px;
-        background: var(--background-secondary);
-        border: 1px solid var(--background-modifier-border);
-        color: var(--text-muted);
-      }
-      .brunet-flow-coming-soon-icon svg {
-        width: 1.35em;
-        height: 1.35em;
-      }
-      .brunet-flow-coming-soon-title {
-        margin: 0;
-        font-size: 0.95em;
-        font-weight: 700;
-        color: var(--text-normal);
-      }
-      .brunet-flow-coming-soon-lead {
-        margin: 0;
-        font-size: 0.82em;
-        line-height: 1.45;
-        max-width: 18em;
-      }
-      .brunet-flow-coming-soon-detail {
-        margin: 0;
-        font-size: 0.76em;
-        line-height: 1.4;
-        max-width: 20em;
-        opacity: 0.85;
-      }
-      .brunet-flow-coming-soon-actions {
-        display: flex;
-        align-items: center;
-        gap: 0.45em;
-        flex-wrap: wrap;
-        justify-content: center;
-        margin-top: 0.35em;
-      }
-      .brunet-flow-coming-soon-link {
-        font-size: 0.78em;
-        color: var(--interactive-accent);
-        text-decoration: none;
-      }
-      .brunet-flow-coming-soon-link:hover {
-        text-decoration: underline;
-      }
-      .brunet-flow-coming-soon-sep {
-        font-size: 0.78em;
-        opacity: 0.5;
-      }
-      .brunet-flow-root {
-        font-family: var(--font-interface);
-        color: var(--text-normal);
-        padding: 0.5em 0.75em 1em;
-        display: flex;
-        flex-direction: column;
-        gap: 0.75em;
-        flex: 1;
-        min-height: 0;
-        box-sizing: border-box;
-        overflow-y: auto;
-        overflow-x: hidden;
-      }
-      .brunet-flow-header {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 0.5em;
-      }
-      .brunet-flow-header-actions {
-        display: flex;
-        gap: 0.35em;
-        flex-shrink: 0;
-      }
-      .brunet-flow-title {
-        font-weight: 700;
-        font-size: 0.9em;
-      }
-      .brunet-flow-empty {
-        color: var(--text-muted);
-        font-size: 0.85em;
-        line-height: 1.5;
-      }
-      .brunet-flow-syntax-sample {
-        margin-top: 0.75em;
-        padding: 0.5em 0.65em;
-        background: var(--background-secondary);
-        border-radius: 4px;
-        font-family: var(--font-monospace);
-        font-size: 0.78em;
-        white-space: pre-wrap;
-        overflow-x: auto;
-      }
-      .brunet-flow-empty-actions {
-        margin-top: 0.75em;
-      }
-      .brunet-flow-tabs {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 0.35em;
-      }
-      .brunet-flow-tab {
-        border: 1px solid var(--background-modifier-border);
-        background: var(--background-secondary);
-        color: var(--text-muted);
-        border-radius: 4px;
-        padding: 0.2em 0.55em;
-        font-size: 0.78em;
-        cursor: pointer;
-        max-width: 100%;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-      }
-      .brunet-flow-tab-active {
-        border-color: var(--interactive-accent);
-        color: var(--text-normal);
-        background: var(--background-modifier-hover);
-      }
-      .brunet-flow-editor {
-        display: flex;
-        flex-direction: column;
-        gap: 0.65em;
-      }
-      .brunet-flow-toolbar {
-        display: flex;
-        gap: 0.35em;
-        align-items: center;
-        flex-wrap: wrap;
-      }
-      .brunet-flow-name-input {
-        flex: 1;
-        min-width: 6em;
-        font-size: 0.85em;
-        padding: 0.25em 0.45em;
-        border-radius: 4px;
-        border: 1px solid var(--background-modifier-border);
-        background: var(--background-primary);
-        color: var(--text-normal);
-      }
-      .brunet-flow-btn {
-        border: 1px solid var(--background-modifier-border);
-        background: var(--background-secondary);
-        color: var(--text-normal);
-        border-radius: 4px;
-        padding: 0.2em 0.55em;
-        font-size: 0.78em;
-        cursor: pointer;
-        white-space: nowrap;
-      }
-      .brunet-flow-btn:hover {
-        background: var(--background-modifier-hover);
-      }
-      .brunet-flow-btn:disabled {
-        opacity: 0.5;
-        cursor: default;
-      }
-      .brunet-flow-btn-accent {
-        border-color: var(--interactive-accent);
-        color: var(--interactive-accent);
-      }
-      .brunet-flow-btn-run {
-        border-color: #49cc90;
-        color: #49cc90;
-      }
-      .brunet-flow-btn-danger {
-        border-color: #f93e3e;
-        color: #f93e3e;
-      }
-      .brunet-flow-options,
-      .brunet-flow-checkbox {
-        font-size: 0.78em;
-        color: var(--text-muted);
-        display: flex;
-        align-items: center;
-        gap: 0.35em;
-      }
-      .brunet-flow-section-title {
-        font-size: 0.82em;
-        font-weight: 600;
-        color: var(--text-muted);
-      }
-      .brunet-flow-mermaid-section {
-        display: flex;
-        flex-direction: column;
-        gap: 0.4em;
-      }
-      .brunet-flow-mermaid-header {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 0.5em;
-      }
-      .brunet-flow-mermaid-hint {
-        margin: 0;
-        font-size: 0.75em;
-        color: var(--text-muted);
-        line-height: 1.4;
-      }
-      .brunet-flow-mermaid-input {
-        width: 100%;
-        min-height: 7em;
-        font-family: var(--font-monospace);
-        font-size: 0.76em;
-        line-height: 1.45;
-        padding: 0.45em 0.5em;
-        border-radius: 4px;
-        border: 1px solid var(--background-modifier-border);
-        background: var(--background-primary);
-        color: var(--text-normal);
-        resize: vertical;
-        box-sizing: border-box;
-      }
-      .brunet-flow-mermaid-diagram {
-        border: 1px solid var(--background-modifier-border);
-        border-radius: 6px;
-        padding: 0.35em 0.5em 0.5em;
-        background: var(--background-secondary);
-        display: flex;
-        flex-direction: column;
-        gap: 0.35em;
-      }
-      .brunet-flow-mermaid-zoom {
-        display: flex;
-        align-items: center;
-        justify-content: flex-end;
-        gap: 0.3em;
-        flex-shrink: 0;
-      }
-      .brunet-flow-zoom-title {
-        font-size: 0.72em;
-        color: var(--text-muted);
-        margin-right: auto;
-      }
-      .brunet-flow-zoom-label {
-        font-size: 0.72em;
-        font-family: var(--font-monospace);
-        color: var(--text-muted);
-        min-width: 2.8em;
-        text-align: center;
-      }
-      .brunet-flow-zoom-reset {
-        font-size: 0.72em;
-        padding: 0.1em 0.4em;
-      }
-      .brunet-flow-mermaid-viewport {
-        overflow: auto;
-        min-height: 4em;
-        max-height: 16em;
-        border-radius: 4px;
-        background: var(--background-primary);
-      }
-      .brunet-flow-mermaid-viewport .brunet-flow-mermaid-svg {
-        display: inline-block;
-        transform-origin: top left;
-        transition: transform 0.12s ease;
-        padding: 0.35em;
-      }
-      .brunet-flow-mermaid-viewport svg {
-        height: auto;
-        display: block;
-      }
-      .brunet-flow-mermaid-error,
-      .brunet-flow-parse-error {
-        margin: 0;
-        font-size: 0.76em;
-        color: #f93e3e;
-      }
-      .brunet-flow-mermaid-viewport .brunet-mmd-ok .label rect,
-      .brunet-flow-mermaid-viewport .brunet-mmd-ok rect {
-        stroke: #49cc90 !important;
-        stroke-width: 2px !important;
-      }
-      .brunet-flow-mermaid-viewport .brunet-mmd-err .label rect,
-      .brunet-flow-mermaid-viewport .brunet-mmd-err rect {
-        stroke: #f93e3e !important;
-        stroke-width: 2px !important;
-      }
-      .brunet-flow-mermaid-viewport .brunet-mmd-skipped .label rect,
-      .brunet-flow-mermaid-viewport .brunet-mmd-skipped rect {
-        opacity: 0.45;
-      }
-      .brunet-flow-files-hint {
-        font-size: 0.72em;
-        color: var(--text-muted);
-        line-height: 1.4;
-      }
-      .brunet-flow-files-label {
-        font-weight: 600;
-      }
-      .brunet-flow-files-list {
-        word-break: break-word;
-      }
-      .brunet-flow-files-empty {
-        margin: 0;
-        font-style: italic;
-      }
-      .brunet-flow-log-host {
-        border-top: 1px solid var(--background-modifier-border);
-        padding-top: 0.5em;
-        display: flex;
-        flex-direction: column;
-        gap: 0.35em;
-      }
-      .brunet-flow-log-title {
-        font-size: 0.78em;
-        font-weight: 600;
-        color: var(--text-muted);
-      }
-      .brunet-flow-log-entry {
-        border: 1px solid var(--background-modifier-border);
-        border-radius: 4px;
-        padding: 0.35em 0.45em;
-        font-size: 0.76em;
-      }
-      .brunet-flow-log-skipped {
-        opacity: 0.75;
-      }
-      .brunet-flow-log-head {
-        display: flex;
-        align-items: center;
-        gap: 0.35em;
-      }
-      .brunet-flow-log-label {
-        flex: 1;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-      }
-      .brunet-flow-log-badge {
-        font-family: var(--font-monospace);
-        font-weight: 700;
-        font-size: 0.92em;
-      }
-      .brunet-flow-log-badge-ok { color: #49cc90; }
-      .brunet-flow-log-badge-err { color: #f93e3e; }
-      .brunet-flow-log-badge-muted { color: var(--text-muted); }
-      .brunet-flow-log-duration {
-        color: var(--text-muted);
-        font-size: 0.9em;
-      }
-      .brunet-flow-log-detail,
-      .brunet-flow-log-error {
-        margin: 0.25em 0 0;
-        color: var(--text-muted);
-      }
-      .brunet-flow-log-error { color: #f93e3e; }
-      .brunet-flow-log-body {
-        margin: 0.25em 0 0;
-        padding: 0.35em;
-        background: var(--background-primary);
-        border-radius: 3px;
-        font-family: var(--font-monospace);
-        font-size: 0.9em;
-        white-space: pre-wrap;
-        word-break: break-word;
-        max-height: 6em;
-        overflow: auto;
-      }
-      .brunet-flow-log-stopped {
-        font-size: 0.78em;
-        color: #f93e3e;
-        font-weight: 600;
-      }
-    `;
-  }
 }

@@ -5,7 +5,7 @@
  */
 
 import { ItemView, WorkspaceLeaf, TFile } from "obsidian";
-import { parseBruFile, getMethodColor } from "./bruParser";
+import { parseBruFile, methodModifierClass } from "./bruParser";
 import { parseBruYml, isRunnableBrunoYml } from "./bruYmlParser";
 import { runBruRequest } from "./bruRunner";
 import {
@@ -18,8 +18,6 @@ import type BrunetPlugin from "./main";
 export const COLLECTION_VIEW_TYPE = "brunet-collection";
 
 export class CollectionView extends ItemView {
-  private styleInjected = false;
-
   constructor(
     leaf: WorkspaceLeaf,
     private plugin: BrunetPlugin,
@@ -51,10 +49,8 @@ export class CollectionView extends ItemView {
   }
 
   refresh(): void {
-    const contentArea = this.containerEl.children[1] as HTMLElement;
+    const contentArea = this.contentEl;
     contentArea.empty();
-
-    this.injectStyles(contentArea);
 
     const allFiles = this.app.vault.getFiles();
     const bruFiles = allFiles.filter(isCandidateRequestFile);
@@ -106,23 +102,21 @@ export class CollectionView extends ItemView {
         ? "(root)"
         : folderPath.split("/").pop() ?? folderPath;
 
-    header.createEl("span", { text: "▼", cls: "brunet-col-chevron" });
-    header.createEl("span", { text: folderName, cls: "brunet-col-folder-name" });
-    header.createEl("span", {
+    header.createSpan({ text: "▼", cls: "brunet-col-chevron" });
+    header.createSpan({ text: folderName, cls: "brunet-col-folder-name" });
+    header.createSpan({
       text: String(files.length),
       cls: "brunet-col-badge",
     });
 
     const fileList = collectionEl.createDiv({ cls: "brunet-col-files" });
-    // Start expanded
-    fileList.style.display = "block";
 
     header.addEventListener("click", () => {
-      const isOpen = fileList.style.display !== "none";
-      fileList.style.display = isOpen ? "none" : "block";
-      const chevron = header.querySelector(".brunet-col-chevron") as HTMLElement;
-      if (chevron) {
-        chevron.textContent = isOpen ? "▶" : "▼";
+      const collapsed = fileList.hasClass("is-collapsed");
+      fileList.toggleClass("is-collapsed", !collapsed);
+      const chevron = header.querySelector(".brunet-col-chevron");
+      if (chevron instanceof HTMLElement) {
+        chevron.setText(collapsed ? "▼" : "▶");
       }
     });
 
@@ -135,12 +129,12 @@ export class CollectionView extends ItemView {
     const row = parent.createDiv({ cls: "brunet-col-file-row" });
 
     // Method badge — read from file name or use placeholder (will update after parse)
-    const methodBadge = row.createEl("span", {
+    const methodBadge = row.createSpan({
       text: "···",
       cls: "brunet-col-method-badge",
     });
 
-    row.createEl("span", { text: file.basename, cls: "brunet-col-file-name" });
+    row.createSpan({ text: file.basename, cls: "brunet-col-file-name" });
 
     const runBtn = row.createEl("button", {
       text: "▶",
@@ -158,8 +152,8 @@ export class CollectionView extends ItemView {
         }
         const parsed = parseBruYml(content);
         const method = parsed.request.method || "?";
-        methodBadge.textContent = method;
-        methodBadge.style.background = getMethodColor(method);
+        methodBadge.setText(method);
+        methodBadge.addClass(methodModifierClass(method));
       } else {
         const parsed = parseBruFile(content);
         if (!isRunnableBruFile(parsed, file)) {
@@ -167,17 +161,17 @@ export class CollectionView extends ItemView {
           return;
         }
         const method = parsed.request.method || "?";
-        methodBadge.textContent = method;
-        methodBadge.style.background = getMethodColor(method);
+        methodBadge.setText(method);
+        methodBadge.addClass(methodModifierClass(method));
       }
     }).catch(() => {
-      methodBadge.textContent = "?";
+      methodBadge.setText("?");
     });
 
     // Open file on row click — both .bru and .yml are registered so openFile routes correctly
     row.addEventListener("click", (e) => {
       if (e.target === runBtn) return;
-      this.app.workspace.getLeaf(false).openFile(file);
+      void this.app.workspace.getLeaf(false).openFile(file);
     });
 
     // Run request on button click
@@ -191,7 +185,7 @@ export class CollectionView extends ItemView {
         const collectionVars = await loadCollectionVars(
           this.app.vault,
           file,
-          this.plugin.settings.activeEnvironment,
+          this.plugin.brunetSettings.activeEnvironment,
         );
         return runBruRequest(parsed, { collectionVars });
       }).then(({ response: resp }) => {
@@ -207,131 +201,4 @@ export class CollectionView extends ItemView {
     });
   }
 
-  private injectStyles(contentArea: HTMLElement): void {
-    if (this.styleInjected) return;
-    this.styleInjected = true;
-
-    const style = contentArea.createEl("style");
-    style.textContent = `
-      .brunet-col-container {
-        font-family: var(--font-interface);
-        color: var(--text-normal);
-        padding: 0.5em 0;
-      }
-      .brunet-col-empty {
-        color: var(--text-muted);
-        font-style: italic;
-        padding: 1em;
-        font-size: 0.85em;
-      }
-      .brunet-col-group {
-        margin-bottom: 0.25em;
-      }
-      .brunet-col-header {
-        display: flex;
-        align-items: center;
-        gap: 0.4em;
-        padding: 0.35em 0.75em;
-        cursor: pointer;
-        user-select: none;
-        font-size: 0.83em;
-        font-weight: 600;
-        color: var(--text-muted);
-        background: var(--background-secondary);
-        border-bottom: 1px solid var(--background-modifier-border);
-      }
-      .brunet-col-header:hover {
-        background: var(--background-modifier-hover);
-      }
-      .brunet-col-chevron {
-        font-size: 0.65em;
-        flex-shrink: 0;
-        color: var(--text-muted);
-      }
-      .brunet-col-folder-name {
-        flex: 1;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-      }
-      .brunet-col-badge {
-        font-size: 0.75em;
-        background: var(--background-modifier-border);
-        border-radius: 999px;
-        padding: 0.1em 0.45em;
-        color: var(--text-muted);
-        font-weight: 400;
-        flex-shrink: 0;
-      }
-      .brunet-col-files {
-        padding: 0.2em 0;
-      }
-      .brunet-col-file-row {
-        display: flex;
-        align-items: center;
-        gap: 0.4em;
-        padding: 0.25em 0.75em 0.25em 1.25em;
-        cursor: pointer;
-        font-size: 0.82em;
-        border-bottom: 1px solid var(--background-modifier-border);
-      }
-      .brunet-col-file-row:hover {
-        background: var(--background-modifier-hover);
-      }
-      .brunet-col-file-row:hover .brunet-col-run-btn {
-        visibility: visible;
-      }
-      .brunet-col-method-badge {
-        font-family: var(--font-monospace);
-        font-size: 0.72em;
-        font-weight: 700;
-        padding: 0.1em 0.35em;
-        border-radius: 3px;
-        background: #aaa;
-        color: #fff;
-        flex-shrink: 0;
-        letter-spacing: 0.03em;
-        min-width: 2.8em;
-        text-align: center;
-      }
-      .brunet-col-file-name {
-        flex: 1;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-        color: var(--text-normal);
-      }
-      .brunet-col-run-btn {
-        visibility: hidden;
-        flex-shrink: 0;
-        background: transparent;
-        border: 1px solid var(--interactive-accent);
-        color: var(--interactive-accent);
-        border-radius: 3px;
-        padding: 0.1em 0.4em;
-        font-size: 0.75em;
-        cursor: pointer;
-        line-height: 1.4;
-        transition: background 0.12s;
-      }
-      .brunet-col-run-btn:hover {
-        background: var(--interactive-accent);
-        color: #fff;
-      }
-      .brunet-col-run-btn:disabled {
-        opacity: 0.6;
-        cursor: default;
-      }
-      .brunet-col-run-ok {
-        visibility: visible !important;
-        color: #49cc90;
-        border-color: #49cc90;
-      }
-      .brunet-col-run-err {
-        visibility: visible !important;
-        color: #f93e3e;
-        border-color: #f93e3e;
-      }
-    `;
-  }
 }

@@ -12,6 +12,31 @@ export const DEFAULT_SETTINGS: BrunetSettings = {
   flows: [],
 };
 
+export function parseBrunetSettings(value: unknown): BrunetSettings {
+  const next: BrunetSettings = { ...DEFAULT_SETTINGS, flows: [] };
+  if (!value || typeof value !== "object") return next;
+  const record = value as Record<string, unknown>;
+  if (typeof record.activeEnvironment === "string") {
+    next.activeEnvironment = record.activeEnvironment;
+  }
+  if (Array.isArray(record.flows)) {
+    next.flows = record.flows.filter(isFlow);
+  }
+  return next;
+}
+
+function isFlow(value: unknown): value is Flow {
+  if (!value || typeof value !== "object") return false;
+  const record = value as Record<string, unknown>;
+  return (
+    typeof record.id === "string" &&
+    typeof record.name === "string" &&
+    typeof record.stopOnError === "boolean" &&
+    typeof record.mermaid === "string" &&
+    Array.isArray(record.steps)
+  );
+}
+
 export class BrunetSettingTab extends PluginSettingTab {
   constructor(app: App, private plugin: BrunetPlugin) {
     super(app, plugin);
@@ -21,8 +46,6 @@ export class BrunetSettingTab extends PluginSettingTab {
     const { containerEl } = this;
     containerEl.empty();
 
-    containerEl.createEl("h2", { text: "Brunet" });
-
     new Setting(containerEl)
       .setName("Active environment")
       .setDesc(
@@ -31,7 +54,7 @@ export class BrunetSettingTab extends PluginSettingTab {
       .addText((text) =>
         text
           .setPlaceholder("e.g. dev")
-          .setValue(this.plugin.settings.activeEnvironment)
+          .setValue(this.plugin.brunetSettings.activeEnvironment)
           .onChange(async (value) => {
             await this.plugin.setActiveEnvironment(value.trim());
           }),

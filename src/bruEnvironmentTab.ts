@@ -72,11 +72,11 @@ export async function mountEnvironmentTab(
   let liveEntries: BruKeyValue[] = [];
 
   const syncSelectToSettings = (): void => {
-    select.value = plugin.settings.activeEnvironment;
+    select.value = plugin.brunetSettings.activeEnvironment;
   };
 
   const pushLiveVarsToRequest = (): void => {
-    const envName = plugin.settings.activeEnvironment;
+    const envName = plugin.brunetSettings.activeEnvironment;
     if (!envName) {
       onVarsUpdated();
       return;
@@ -99,7 +99,7 @@ export async function mountEnvironmentTab(
   };
 
   const persistEntries = async () => {
-    const envName = plugin.settings.activeEnvironment;
+    const envName = plugin.brunetSettings.activeEnvironment;
     if (!envName) return;
 
     const raw = liveEntries
@@ -146,7 +146,7 @@ export async function mountEnvironmentTab(
     renderVarsInflight = (async () => {
       syncSelectToSettings();
       varsHost.empty();
-      const envName = plugin.settings.activeEnvironment;
+      const envName = plugin.brunetSettings.activeEnvironment;
       if (!envName) {
         varsHost.createEl("p", {
           text: "Select an environment to edit variables.",
@@ -177,8 +177,8 @@ export async function mountEnvironmentTab(
     }
   };
 
-  select.addEventListener("change", async () => {
-    await plugin.setActiveEnvironment(select.value);
+  select.addEventListener("change", () => {
+    void plugin.setActiveEnvironment(select.value);
   });
 
   syncSelectToSettings();

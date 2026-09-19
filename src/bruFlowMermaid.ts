@@ -574,7 +574,12 @@ export async function renderMermaidDiagram(
   const id = `brunet-mmd-${Math.random().toString(36).slice(2, 10)}`;
   try {
     const { svg } = await mermaid.render(id, source);
-    wrap.innerHTML = svg;
+    wrap.empty();
+    const parsed = new DOMParser().parseFromString(svg, "image/svg+xml");
+    const svgNode = parsed.documentElement;
+    if (svgNode.tagName.toLowerCase() === "svg") {
+      wrap.appendChild(wrap.doc.importNode(svgNode, true));
+    }
   } catch (err) {
     wrap.createEl("p", {
       cls: "brunet-flow-mermaid-error",

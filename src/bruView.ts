@@ -17,7 +17,8 @@ import {
   getBruBodyType,
   BruFile,
   BruKeyValue,
-  getMethodColor,
+  methodModifierClass,
+  statusBadgeClass,
   isFormBodyType,
   parseFormBodyContent,
   serializeFormBodyContent,
@@ -29,7 +30,6 @@ import {
   isBrunoYml,
   isOpenCollectionYml,
   parseManifestYml,
-  isRunnableBrunoYml,
   isFolderManifestYmlFile,
   isCollectionManifestYmlFile,
   updateYmlFromParsed,
@@ -39,7 +39,6 @@ import { runBruRequest, BruResponse, BruRunResult, BruRequestSnapshot, resolveVa
 import {
   formatBruRunCommand,
   isBruManifest,
-  isCollectionManifestFile,
   isEnvironmentFile,
   isAnyFolderManifestFile,
   isAnyCollectionManifestFile,
@@ -76,92 +75,6 @@ import {
 } from "./bruBodyEditor";
 
 export const BRU_VIEW_TYPE = "bru-view";
-
-/** Overrides Obsidian readable line width on the bru-view leaf. */
-export const BRU_VIEW_LEAF_STYLES = `
-  .workspace-leaf-content[data-type="bru-view"] {
-    --file-line-width: 100%;
-    --line-width: 100%;
-    --max-width: none;
-  }
-  .workspace-leaf-content[data-type="bru-view"] .view-content,
-  .workspace-leaf-content[data-type="bru-view"] .view-content > * {
-    max-width: none !important;
-    width: 100% !important;
-    margin-left: 0 !important;
-    margin-right: 0 !important;
-  }
-  .workspace-leaf-content[data-type="bru-view"] .cm-sizer,
-  .workspace-leaf-content[data-type="bru-view"] .cm-contentContainer,
-  .workspace-leaf-content[data-type="bru-view"] .markdown-source-view,
-  .workspace-leaf-content[data-type="bru-view"] .markdown-preview-sizer {
-    max-width: none !important;
-    width: 100% !important;
-    margin-left: 0 !important;
-    margin-right: 0 !important;
-  }
-  .workspace-leaf-content[data-type="bru-view"] .bru-view-content,
-  .workspace-leaf-content[data-type="bru-view"] .bru-view-root {
-    max-width: none !important;
-    width: 100% !important;
-    box-sizing: border-box;
-  }
-  .workspace-leaf-content[data-type="bru-view"] {
-    height: 100%;
-  }
-  .workspace-leaf-content[data-type="bru-view"] .view-content {
-    height: 100%;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-  }
-  .workspace-leaf-content[data-type="bru-view"] .bru-view-content {
-    flex: 1;
-    min-height: 0;
-    height: 100%;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-  }
-`;
-
-const BRU_QUICK_OPEN_STYLES = `
-  .bru-qo-top {
-    display: flex;
-    align-items: center;
-    gap: 0.5em;
-    margin-bottom: 0.15em;
-  }
-  .bru-qo-badge {
-    font-size: 0.72em;
-    padding: 0.15em 0.5em;
-    flex-shrink: 0;
-  }
-  .bru-qo-name {
-    font-weight: var(--font-medium);
-    color: var(--text-normal);
-  }
-  .bru-qo-url {
-    font-family: var(--font-monospace);
-    font-size: 0.82em;
-    color: var(--text-muted);
-    margin-bottom: 0.1em;
-    word-break: break-all;
-  }
-  .bru-qo-path {
-    font-size: 0.75em;
-    color: var(--text-faint);
-    word-break: break-all;
-  }
-`;
-
-export function registerBruViewLeafStyles(plugin: BrunetPlugin): void {
-  const style = document.createElement("style");
-  style.id = "brunet-bru-view-leaf";
-  style.textContent = BRU_VIEW_LEAF_STYLES + BRU_QUICK_OPEN_STYLES;
-  document.head.appendChild(style);
-  plugin.register(() => style.remove());
-}
 
 export class BruFileView extends TextFileView {
   private contentDiv: HTMLDivElement;
@@ -225,14 +138,6 @@ export class BruFileView extends TextFileView {
   private applyFullWidthLayout(): void {
     this.containerEl.addClass("bru-file-view-leaf");
     this.contentEl.addClass("bru-view-content");
-
-    const leafContent = this.containerEl.closest(
-      ".workspace-leaf-content",
-    ) as HTMLElement | null;
-    if (leafContent) {
-      leafContent.style.setProperty("--file-line-width", "100%");
-      leafContent.style.setProperty("--line-width", "100%");
-    }
   }
 
   getViewType(): string {
@@ -317,7 +222,6 @@ export class BruFileView extends TextFileView {
       normalizeParsedUrl(parsed);
     }
 
-    this.renderStyles();
     if (isManifest) {
       this.renderHeader(parsed, filename, editable, manifestKind);
       this.renderManifestPanel(parsed, manifestKind);
@@ -393,692 +297,6 @@ export class BruFileView extends TextFileView {
     return null;
   }
 
-  private renderStyles(): void {
-    // Inject plugin styles into the view container (scoped to .bru-view-root)
-    if (this.contentEl.querySelector("style.bru-styles")) return;
-
-    const style = this.contentEl.createEl("style");
-    style.className = "bru-styles";
-    style.textContent = `
-      .bru-view-root {
-        font-family: var(--font-interface);
-        width: 100%;
-        max-width: none;
-        min-width: 0;
-        box-sizing: border-box;
-        padding: var(--size-4-5);
-        color: var(--text-normal);
-        overflow: hidden;
-        display: flex;
-        flex-direction: column;
-        flex: 1;
-        min-height: 0;
-        height: 100%;
-      }
-      .bru-header {
-        display: flex;
-        align-items: center;
-        gap: 0.75em;
-        margin-bottom: 1.5em;
-        flex-shrink: 0;
-        padding: 1em 1.25em;
-        background: var(--background-secondary);
-        border-radius: 8px;
-        border-left: 4px solid var(--bru-method-color, #61affe);
-        flex-wrap: nowrap;
-      }
-      .bru-method-badge {
-        font-size: 0.85em;
-        font-weight: 700;
-        letter-spacing: 0.05em;
-        padding: 0.25em 0.65em;
-        border-radius: 4px;
-        background: var(--bru-method-color, #61affe);
-        color: #fff;
-        font-family: var(--font-monospace);
-        flex-shrink: 0;
-      }
-      .bru-method-select {
-        font-size: 0.85em;
-        font-weight: 700;
-        letter-spacing: 0.05em;
-        padding: 0.25em 1.75em 0.25em 0.65em;
-        border-radius: 4px;
-        border: none;
-        background: var(--bru-method-color, #61affe);
-        color: #fff;
-        font-family: var(--font-monospace);
-        flex-shrink: 0;
-        cursor: pointer;
-        appearance: none;
-        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
-        background-repeat: no-repeat;
-        background-position: right 0.45em center;
-      }
-      .bru-method-select:focus {
-        outline: 2px solid var(--interactive-accent);
-        outline-offset: 1px;
-      }
-      .bru-method-select option {
-        background: var(--background-primary);
-        color: var(--text-normal);
-      }
-      .bru-url {
-        font-family: var(--font-monospace);
-        font-size: 0.95em;
-        word-break: break-all;
-        color: var(--text-normal);
-        flex: 1;
-      }
-      .bru-url-input {
-        flex: 1;
-        min-width: 12em;
-        font-family: var(--font-monospace);
-        font-size: 0.95em;
-        padding: 0.35em 0.55em;
-        border-radius: 4px;
-        border: 1px solid var(--background-modifier-border);
-        background: var(--background-primary);
-        color: var(--text-normal);
-      }
-      .bru-url-input:focus {
-        border-color: var(--interactive-accent);
-        outline: none;
-      }
-      .bru-url-field-wrap {
-        flex: 1;
-        min-width: 12em;
-      }
-      .bru-url-field-wrap .bru-url-input {
-        width: 100%;
-        box-sizing: border-box;
-      }
-      .bru-param-resolved {
-        font-family: var(--font-monospace);
-        font-size: 0.78em;
-        color: var(--text-muted);
-        margin-top: 0.2em;
-        word-break: break-all;
-        line-height: 1.35;
-      }
-      .bru-param-resolved::before {
-        content: "→ ";
-        color: var(--text-faint);
-      }
-      .bru-params-hint {
-        font-size: 0.82em;
-        color: var(--text-muted);
-        margin: 0 0 1em;
-        line-height: 1.45;
-      }
-      .bru-field-input {
-        width: 100%;
-        font-family: var(--font-monospace);
-        font-size: 0.88em;
-        padding: 0.3em 0.45em;
-        border-radius: 4px;
-        border: 1px solid var(--background-modifier-border);
-        background: var(--background-primary);
-        color: var(--text-normal);
-        box-sizing: border-box;
-      }
-      .bru-field-input:focus {
-        border-color: var(--interactive-accent);
-        outline: none;
-      }
-      .bru-body-editor-toolbar {
-        display: flex;
-        align-items: center;
-        gap: var(--size-4-2);
-        margin-bottom: var(--size-4-2);
-        flex-shrink: 0;
-      }
-      .bru-body-editor-host {
-        flex: 1;
-        min-height: 0;
-        display: flex;
-        flex-direction: column;
-      }
-      .bru-body-type-wrap {
-        display: flex;
-        align-items: center;
-        gap: var(--size-2-2);
-      }
-      .bru-body-type-label {
-        font-size: var(--font-ui-smaller);
-        color: var(--text-muted);
-      }
-      .bru-body-type-select {
-        font-size: var(--font-ui-small);
-        padding: var(--size-2-1) var(--size-4-2);
-        border-radius: var(--radius-s);
-        border: 1px solid var(--background-modifier-border);
-        background: var(--background-primary);
-        color: var(--text-normal);
-      }
-      .bru-body-type-readonly {
-        font-size: var(--font-ui-small);
-        font-weight: var(--font-medium);
-        color: var(--text-normal);
-      }
-      .bru-env-tab-toolbar {
-        display: flex;
-        align-items: center;
-        margin-bottom: var(--size-4-3);
-        flex-shrink: 0;
-      }
-      .bru-env-tab-vars {
-        flex: 1;
-        min-height: 0;
-      }
-      .bru-body-toolbar-actions {
-        display: flex;
-        align-items: center;
-        gap: var(--size-2-2);
-        margin-left: auto;
-        flex-shrink: 0;
-      }
-      .bru-body-toolbar-btn {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        width: var(--size-4-4);
-        height: var(--size-4-4);
-        padding: 0;
-        border-radius: var(--radius-s);
-        color: var(--text-muted);
-      }
-      .bru-body-toolbar-btn:hover {
-        color: var(--interactive-accent);
-        background: var(--background-modifier-hover);
-      }
-      .bru-body-toolbar-btn svg {
-        width: var(--icon-m);
-        height: var(--icon-m);
-      }
-      .bru-body-cm-mount {
-        flex: 1;
-        min-height: 0;
-        display: flex;
-        flex-direction: column;
-      }
-      .bru-body-cm-mount .cm-editor {
-        width: 100%;
-        flex: 1;
-        min-height: 0;
-        height: 100%;
-        display: flex;
-        flex-direction: column;
-      }
-      .bru-body-cm-mount .cm-scroller {
-        flex: 1;
-        min-height: 0;
-        overflow: auto;
-      }
-      .bru-kv-actions {
-        display: flex;
-        gap: var(--size-2-2);
-        margin-top: var(--size-4-2);
-      }
-      .bru-kv-table-editable td.bru-kv-enabled-cell {
-        width: 2em;
-      }
-      .bru-kv-table-editable td.bru-kv-action-cell {
-        width: 2.5em;
-        text-align: center;
-      }
-      .bru-kv-table-editable.bru-kv-table-no-enabled .bru-key {
-        width: 40%;
-      }
-      .bru-kv-remove {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        padding: var(--size-2-2);
-        width: var(--size-4-6);
-        height: var(--size-4-6);
-        min-width: unset;
-        border: none;
-        background: transparent;
-        box-shadow: none;
-        color: var(--text-muted);
-        --icon-size: var(--icon-xs);
-      }
-      .bru-kv-remove:hover {
-        color: var(--text-error);
-        background: var(--background-modifier-hover);
-      }
-      .bru-kv-add {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        padding: var(--size-2-2);
-        width: var(--size-4-6);
-        height: var(--size-4-6);
-        min-width: unset;
-        border: none;
-        background: transparent;
-        box-shadow: none;
-        color: var(--text-muted);
-        --icon-size: var(--icon-xs);
-      }
-      .bru-kv-add:hover {
-        color: var(--interactive-accent);
-        background: var(--background-modifier-hover);
-      }
-      .bru-kv-enabled {
-        width: 1em;
-        vertical-align: middle;
-      }
-      /*
-       * Use vertical-tab-nav-item for native tab chrome only — NOT
-       * vertical-tabs-container (its row flex puts content beside the nav).
-       */
-      .brunet-request-tabs {
-        margin-bottom: var(--size-4-4);
-        width: 100%;
-        min-width: 0;
-        overflow: hidden;
-        display: flex;
-        flex-direction: column;
-        flex: 1;
-        min-height: 0;
-      }
-      .brunet-tab-nav {
-        display: flex;
-        flex-wrap: wrap;
-        align-items: flex-end;
-        gap: 0;
-        width: 100%;
-        min-width: 0;
-        border-bottom: 1px solid var(--background-modifier-border);
-        flex-shrink: 0;
-      }
-      .brunet-tab-nav .vertical-tab-nav-item {
-        flex: 0 0 auto;
-        width: auto;
-        margin: 0;
-        padding: var(--size-4-2) var(--size-4-4);
-        border-radius: var(--radius-s) var(--radius-s) 0 0;
-        box-shadow: none;
-      }
-      .brunet-tab-body {
-        width: 100%;
-        min-width: 0;
-        min-height: 0;
-        flex: 1;
-        padding: var(--size-4-4);
-        box-sizing: border-box;
-        display: flex;
-        flex-direction: column;
-        overflow: hidden;
-      }
-      .brunet-request-tabs .brunet-tab-panel {
-        display: none;
-      }
-      .brunet-request-tabs .brunet-tab-panel.is-active {
-        display: flex;
-        flex-direction: column;
-        flex: 1;
-        min-height: 0;
-        overflow: auto;
-      }
-      .brunet-request-tabs .brunet-tab-panel[data-tab="body"].is-active {
-        overflow: hidden;
-      }
-      .bru-body-tab-content {
-        display: flex;
-        flex-direction: column;
-        flex: 1;
-        min-height: 0;
-        height: 100%;
-      }
-      .brunet-request-tabs .brunet-tab-count {
-        margin-left: var(--size-2-2);
-        color: var(--text-faint);
-        font-size: var(--font-ui-smaller);
-        font-weight: var(--font-normal);
-      }
-      .brunet-request-tabs .vertical-tab-nav-item.is-active .brunet-tab-count {
-        color: var(--text-muted);
-      }
-      .brunet-request-tabs .bru-kv-table-editable {
-        width: 100%;
-        table-layout: fixed;
-      }
-      .bru-tab-empty {
-        color: var(--text-muted);
-        font-style: italic;
-        font-size: var(--font-ui-small);
-      }
-      .bru-param-group {
-        margin-bottom: var(--size-4-4);
-      }
-      .bru-param-group:last-child {
-        margin-bottom: 0;
-      }
-      .bru-param-heading {
-        margin: 0 0 var(--size-4-2);
-        font-size: var(--font-ui-small);
-        font-weight: var(--font-semibold);
-        color: var(--text-muted);
-        text-transform: uppercase;
-        letter-spacing: 0.04em;
-      }
-      .bru-more-sections details.bru-section {
-        margin-bottom: 0.5em;
-      }
-      .bru-manifest-hint {
-        flex-basis: 100%;
-        margin: 0.35em 0 0;
-        font-size: 0.82em;
-        color: var(--text-muted);
-        line-height: 1.4;
-      }
-      .bru-manifest-panel {
-        margin-top: var(--size-4-4);
-        padding: var(--size-4-5);
-        border: 1px solid var(--background-modifier-border);
-        border-radius: var(--radius-m);
-        background: var(--background-secondary);
-      }
-      .bru-manifest-title {
-        margin: 0 0 0.35em;
-        font-size: 1.15em;
-        font-weight: var(--font-semibold);
-        color: var(--text-normal);
-      }
-      .bru-manifest-desc {
-        margin: 0 0 1em;
-        color: var(--text-muted);
-        font-size: var(--font-ui-small);
-        line-height: 1.5;
-      }
-      .bru-manifest-table {
-        width: 100%;
-        border-collapse: collapse;
-        font-size: var(--font-ui-small);
-      }
-      .bru-manifest-table th {
-        text-align: left;
-        width: 7em;
-        padding: 0.45em 0.75em 0.45em 0;
-        color: var(--text-muted);
-        font-weight: var(--font-medium);
-        vertical-align: top;
-      }
-      .bru-manifest-table td {
-        padding: 0.45em 0;
-        color: var(--text-normal);
-        word-break: break-word;
-      }
-      .bru-manifest-subsection {
-        margin-top: 1.25em;
-        padding-top: 1em;
-        border-top: 1px solid var(--background-modifier-border);
-      }
-      .bru-manifest-subtitle {
-        margin: 0 0 0.65em;
-        font-size: var(--font-ui-small);
-        font-weight: var(--font-semibold);
-        color: var(--text-muted);
-        text-transform: uppercase;
-        letter-spacing: 0.04em;
-      }
-      .bru-manifest-list {
-        margin: 0;
-        padding-left: 1.25em;
-        font-size: var(--font-ui-small);
-        color: var(--text-normal);
-      }
-      .bru-manifest-docs {
-        white-space: pre-wrap;
-        font-size: var(--font-ui-small);
-      }
-      .bru-header-actions {
-        display: flex;
-        align-items: center;
-        gap: var(--size-2-2);
-        margin-left: auto;
-        flex-shrink: 0;
-      }
-      .bru-copy-btn {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        padding: var(--size-2-2);
-        width: var(--size-4-6);
-        height: var(--size-4-6);
-        border: none;
-        background: transparent;
-        box-shadow: none;
-        color: var(--text-muted);
-        --icon-size: var(--icon-xs);
-      }
-      .bru-copy-btn:hover {
-        color: var(--interactive-accent);
-        background: var(--background-modifier-hover);
-      }
-      details.bru-section {
-        margin-bottom: 0.75em;
-        border: 1px solid var(--background-modifier-border);
-        border-radius: 6px;
-        overflow: hidden;
-      }
-      details.bru-section[open] > summary {
-        border-bottom: 1px solid var(--background-modifier-border);
-      }
-      details.bru-section summary {
-        cursor: pointer;
-        padding: 0.55em 1em;
-        font-size: 0.88em;
-        font-weight: 600;
-        user-select: none;
-        background: var(--background-secondary);
-        list-style: none;
-        display: flex;
-        align-items: center;
-        gap: 0.5em;
-      }
-      details.bru-section summary::-webkit-details-marker { display: none; }
-      details.bru-section summary::before {
-        content: "▶";
-        font-size: 0.75em;
-        transition: transform 0.15s;
-        display: inline-block;
-        color: var(--text-muted);
-      }
-      details.bru-section[open] summary::before {
-        transform: rotate(90deg);
-      }
-      .bru-section-count {
-        margin-left: auto;
-        font-size: 0.78em;
-        color: var(--text-muted);
-        font-weight: 400;
-      }
-      .bru-section-body {
-        padding: 0.75em 1em;
-        background: var(--background-primary);
-      }
-      .bru-kv-table {
-        width: 100%;
-        border-collapse: collapse;
-        font-size: 0.88em;
-        font-family: var(--font-monospace);
-      }
-      .bru-kv-table tr {
-        border-bottom: 1px solid var(--background-modifier-border);
-      }
-      .bru-kv-table tr:last-child { border-bottom: none; }
-      .bru-kv-table td {
-        padding: 0.35em 0.5em;
-        vertical-align: top;
-      }
-      .bru-kv-table .bru-key {
-        color: var(--text-accent);
-        white-space: nowrap;
-        width: 40%;
-      }
-      .bru-kv-table .bru-value {
-        color: var(--text-normal);
-        word-break: break-all;
-      }
-      .bru-kv-table tr.bru-disabled {
-        opacity: 0.45;
-        text-decoration: line-through;
-      }
-      .bru-var-ref {
-        color: #e8a838;
-        background: rgba(232,168,56,0.12);
-        border-radius: 3px;
-        padding: 0 0.15em;
-      }
-      .bru-code-block {
-        background: var(--background-secondary);
-        border-radius: 4px;
-        padding: 0.75em 1em;
-        font-family: var(--font-monospace);
-        font-size: 0.85em;
-        white-space: pre-wrap;
-        overflow-x: auto;
-        color: var(--text-normal);
-        line-height: 1.55;
-      }
-      .bru-assert-op {
-        color: #49cc90;
-        font-weight: 600;
-        margin-left: 0.3em;
-      }
-      .bru-docs-body {
-        font-size: 0.9em;
-        line-height: 1.6;
-        white-space: pre-wrap;
-        color: var(--text-normal);
-      }
-      .bru-empty {
-        color: var(--text-muted);
-        font-style: italic;
-      }
-      .bru-section-icon {
-        font-size: 0.9em;
-      }
-      .bru-send-btn {
-        flex-shrink: 0;
-        cursor: pointer;
-        padding: 0.3em 0.9em;
-        border-radius: 4px;
-        border: none;
-        background: var(--interactive-accent);
-        color: #fff;
-        font-size: 0.82em;
-        font-weight: 600;
-        transition: opacity 0.15s;
-      }
-      .bru-send-btn:hover {
-        opacity: 0.88;
-      }
-      .bru-send-btn:disabled {
-        opacity: 0.45;
-        cursor: default;
-      }
-      .bru-loading {
-        color: var(--text-muted);
-        font-style: italic;
-        font-size: 0.88em;
-        padding: 0.75em 0;
-      }
-      .bru-console-section {
-        margin-bottom: var(--size-4-5);
-      }
-      .bru-console-section:last-child {
-        margin-bottom: 0;
-      }
-      .bru-console-heading {
-        margin: 0 0 var(--size-4-2);
-        font-size: var(--font-ui-small);
-        font-weight: var(--font-semibold);
-        color: var(--text-muted);
-        text-transform: uppercase;
-        letter-spacing: 0.04em;
-      }
-      .bru-console-meta {
-        font-size: var(--font-ui-smaller);
-        color: var(--text-faint);
-        margin-bottom: var(--size-4-3);
-      }
-      .bru-console-req-line {
-        display: flex;
-        align-items: flex-start;
-        gap: var(--size-4-2);
-        margin-bottom: var(--size-4-3);
-        flex-wrap: wrap;
-      }
-      .bru-console-req-line .bru-method-badge {
-        flex-shrink: 0;
-        margin-top: 0.15em;
-      }
-      .bru-console-body-view {
-        margin-top: var(--size-2-2);
-      }
-      .bru-console-body-editor-host {
-        min-height: 12em;
-        max-height: 28em;
-      }
-      .bru-console-body-editor-host .bru-body-cm-mount {
-        flex: none;
-      }
-      .bru-console-body-editor-host .bru-body-cm-mount .cm-editor {
-        height: auto;
-        min-height: 12em;
-        max-height: 28em;
-        flex: none;
-      }
-      .bru-console-body-editor-host .bru-body-cm-mount .cm-scroller {
-        max-height: 28em;
-        overflow: auto;
-      }
-      .bru-console-url {
-        font-family: var(--font-monospace);
-        font-size: var(--font-ui-small);
-        word-break: break-all;
-        color: var(--text-normal);
-        flex: 1;
-        min-width: 0;
-      }
-      .bru-res-status-row {
-        display: flex;
-        align-items: center;
-        gap: 0.6em;
-        margin-bottom: 0.75em;
-        flex-wrap: wrap;
-      }
-      .bru-res-badge {
-        font-family: var(--font-monospace);
-        font-size: 0.9em;
-        font-weight: 700;
-        padding: 0.2em 0.6em;
-        border-radius: 4px;
-        color: #fff;
-      }
-      .bru-res-duration {
-        color: var(--text-muted);
-        font-size: 0.8em;
-        margin-left: auto;
-      }
-      .bru-res-error {
-        background: rgba(249,62,62,0.12);
-        border: 1px solid #f93e3e;
-        border-radius: 4px;
-        color: #f93e3e;
-        padding: 0.6em 0.9em;
-        font-size: 0.88em;
-        margin-bottom: 0.75em;
-        word-break: break-word;
-      }
-    `;
-  }
-
   private getParsedForRequest(): BruFile {
     return this.parsed ?? parseBruFile(this.data);
   }
@@ -1112,7 +330,7 @@ export class BruFileView extends TextFileView {
     this.collectionVars = await loadCollectionVars(
       this.app.vault,
       this.file,
-      this.plugin.settings.activeEnvironment,
+      this.plugin.brunetSettings.activeEnvironment,
       useLiveEnv ? { envOverrides: liveEnvVars } : undefined,
     );
   }
@@ -1482,41 +700,35 @@ export class BruFileView extends TextFileView {
     const method = isManifest
       ? (manifestKind ?? "config").toUpperCase()
       : normalizeBruHttpMethod(parsed.request.method);
-    const color = isManifest ? "#888" : getMethodColor(method);
 
     const header = this.contentDiv.createDiv({ cls: "bru-header" });
-    header.style.setProperty("--bru-method-color", color);
-    header.style.setProperty("border-left-color", color);
-
-    const applyMethodColor = (nextMethod: string) => {
-      const nextColor = getMethodColor(nextMethod);
-      header.style.setProperty("--bru-method-color", nextColor);
-      header.style.setProperty("border-left-color", nextColor);
-      if (methodSelect) {
-        methodSelect.style.backgroundColor = nextColor;
-      }
-    };
+    header.addClass(methodModifierClass(method));
 
     let methodSelect: HTMLSelectElement | null = null;
 
     if (editable && !isManifest) {
       methodSelect = header.createEl("select", { cls: "bru-method-select" });
-      methodSelect.style.backgroundColor = color;
       for (const option of BRU_HTTP_METHODS) {
         const opt = methodSelect.createEl("option", { text: option, value: option });
         if (option === method) opt.selected = true;
       }
       methodSelect.addEventListener("change", () => {
         parsed.request.method = normalizeBruHttpMethod(methodSelect!.value);
-        applyMethodColor(parsed.request.method);
+        const stale = Array.from(header.classList).filter(
+          (cls) =>
+            cls.startsWith("bru-method-") &&
+            cls !== "bru-method-badge" &&
+            cls !== "bru-method-select",
+        );
+        for (const cls of stale) header.removeClass(cls);
+        header.addClass(methodModifierClass(parsed.request.method));
         this.scheduleCommit();
       });
     } else {
-      const badge = header.createEl("span", {
+      header.createSpan({
         text: method,
         cls: "bru-method-badge",
       });
-      badge.style.background = color;
     }
 
     if (isManifest) {
@@ -1526,7 +738,7 @@ export class BruFileView extends TextFileView {
         ymlManifest?.name ||
         parsed.meta.name ||
         (manifestKind === "collection" ? "Collection" : "Folder");
-      header.createEl("span", {
+      header.createSpan({
         text: label,
         cls: "bru-url",
       });
@@ -1554,7 +766,7 @@ export class BruFileView extends TextFileView {
       });
     } else {
       const displayUrl = buildDisplayUrl(parsed, this.collectionVars) || "(no URL)";
-      header.createEl("span", {
+      header.createSpan({
         text: displayUrl,
         cls: "bru-url",
       });
@@ -1570,7 +782,7 @@ export class BruFileView extends TextFileView {
     copyBtn.addEventListener("click", () => {
       const cmd = formatBruRunCommand(
         filename,
-        this.plugin.settings.activeEnvironment,
+        this.plugin.brunetSettings.activeEnvironment,
       );
       navigator.clipboard.writeText(cmd).then(() => {
         new Notice(`Copied: ${cmd}`);
@@ -1638,7 +850,7 @@ export class BruFileView extends TextFileView {
       return;
     }
 
-    container.createEl("div", {
+    container.createDiv({
       text: `Last run at ${new Date().toLocaleTimeString()}`,
       cls: "bru-console-meta",
     });
@@ -1655,17 +867,19 @@ export class BruFileView extends TextFileView {
   private renderRequestInto(container: HTMLElement, req: BruRequestSnapshot): void {
     const method = req.method || "GET";
     const line = container.createDiv({ cls: "bru-console-req-line" });
-    const badge = line.createEl("span", { text: method, cls: "bru-method-badge" });
-    badge.style.background = getMethodColor(method);
-    line.createEl("span", { text: req.url || "(no URL)", cls: "bru-console-url" });
+    line.createSpan({
+      text: method,
+      cls: `bru-method-badge ${methodModifierClass(method)}`,
+    });
+    line.createSpan({ text: req.url || "(no URL)", cls: "bru-console-url" });
 
     const headerEntries = Object.entries(req.headers);
     if (headerEntries.length > 0) {
       const headersDetails = container.createEl("details", { cls: "bru-section" });
       headersDetails.open = true;
       const headersSummary = headersDetails.createEl("summary");
-      headersSummary.createEl("span", { text: "Headers" });
-      headersSummary.createEl("span", {
+      headersSummary.createSpan( { text: "Headers" });
+      headersSummary.createSpan( {
         text: String(headerEntries.length),
         cls: "bru-section-count",
       });
@@ -1682,8 +896,8 @@ export class BruFileView extends TextFileView {
       const bodyDetails = container.createEl("details", { cls: "bru-section" });
       bodyDetails.open = true;
       const bodySummary = bodyDetails.createEl("summary");
-      bodySummary.createEl("span", { text: "Body" });
-      bodySummary.createEl("span", {
+      bodySummary.createSpan( { text: "Body" });
+      bodySummary.createSpan( {
         text: `${req.body.length} chars`,
         cls: "bru-section-count",
       });
@@ -1698,27 +912,20 @@ export class BruFileView extends TextFileView {
   private renderResponseInto(container: HTMLElement, resp: BruResponse): void {
     const statusRow = container.createDiv({ cls: "bru-res-status-row" });
 
-    let badgeColor = "#aaa";
-    if (resp.status >= 200 && resp.status < 300) badgeColor = "#49cc90";
-    else if (resp.status >= 300 && resp.status < 400) badgeColor = "#61affe";
-    else if (resp.status >= 400 && resp.status < 500) badgeColor = "#fca130";
-    else if (resp.status >= 500) badgeColor = "#f93e3e";
-
-    const statusBadge = statusRow.createEl("span", {
+    statusRow.createSpan({
       text: resp.status ? String(resp.status) : "ERR",
-      cls: "bru-res-badge",
+      cls: `bru-res-badge ${statusBadgeClass(resp.status)}`,
     });
-    statusBadge.style.background = badgeColor;
 
-    statusRow.createEl("span", { text: resp.statusText });
+    statusRow.createSpan({ text: resp.statusText });
 
-    statusRow.createEl("span", {
+    statusRow.createSpan( {
       text: `${resp.durationMs} ms`,
       cls: "bru-res-duration",
     });
 
     if (resp.error) {
-      container.createEl("div", {
+      container.createDiv({
         text: resp.error,
         cls: "bru-res-error",
       });
@@ -1728,8 +935,8 @@ export class BruFileView extends TextFileView {
     if (headerEntries.length > 0) {
       const headersDetails = container.createEl("details", { cls: "bru-section" });
       const headersSummary = headersDetails.createEl("summary");
-      headersSummary.createEl("span", { text: "Response Headers" });
-      headersSummary.createEl("span", {
+      headersSummary.createSpan( { text: "Response Headers" });
+      headersSummary.createSpan( {
         text: String(headerEntries.length),
         cls: "bru-section-count",
       });
@@ -1746,11 +953,11 @@ export class BruFileView extends TextFileView {
       const bodyDetails = container.createEl("details", { cls: "bru-section" });
       bodyDetails.open = true;
       const bodySummary = bodyDetails.createEl("summary");
-      bodySummary.createEl("span", { text: "Response Body" });
+      bodySummary.createSpan( { text: "Response Body" });
 
       const bodyLength = resp.body ? resp.body.length : 0;
       const note = resp.json !== null ? "JSON" : `${bodyLength} chars`;
-      bodySummary.createEl("span", { text: note, cls: "bru-section-count" });
+      bodySummary.createSpan( { text: note, cls: "bru-section-count" });
 
       const bodyContent = bodyDetails.createDiv({ cls: "bru-section-body" });
       const responseText =
@@ -2289,7 +1496,7 @@ export class BruFileView extends TextFileView {
       // The value is like "eq 200" or "isNumber" — split operator from arg
       const parts = entry.value.split(/\s+/);
       if (parts.length >= 1) {
-        valueTd.createEl("span", {
+        valueTd.createSpan( {
           text: parts[0],
           cls: "bru-assert-op",
         });
@@ -2305,7 +1512,7 @@ export class BruFileView extends TextFileView {
 
     const details = this.makeDetails("Documentation", "📝", 0, parent);
     const body = details.createDiv({ cls: "bru-section-body" });
-    body.createEl("div", {
+    body.createDiv({
       text: parsed.docs.trim(),
       cls: "bru-docs-body",
     });
@@ -2330,16 +1537,16 @@ export class BruFileView extends TextFileView {
   ): HTMLDetailsElement {
     const details = parent.createEl("details", {
       cls: "bru-section",
-    }) as HTMLDetailsElement;
+    });
     details.open = title !== "Raw Source"; // open all except raw
 
     const summary = details.createEl("summary");
     if (icon) {
-      summary.createEl("span", { text: icon + " ", cls: "bru-section-icon" });
+      summary.createSpan( { text: icon + " ", cls: "bru-section-icon" });
     }
-    summary.createEl("span", { text: title });
+    summary.createSpan( { text: title });
     if (count > 0) {
-      summary.createEl("span", {
+      summary.createSpan( {
         text: `${count}`,
         cls: "bru-section-count",
       });
@@ -2357,7 +1564,7 @@ export class BruFileView extends TextFileView {
     const parts = resolved.split(/({{[^}]*}})/g);
     for (const part of parts) {
       if (part.startsWith("{{") && part.endsWith("}}")) {
-        container.createEl("span", { text: part, cls: "bru-var-ref" });
+        container.createSpan( { text: part, cls: "bru-var-ref" });
       } else {
         container.appendText(part);
       }

@@ -86,7 +86,13 @@ function varsToRecord(entries: BruKeyValue[]): Record<string, string> {
 }
 
 function mergeVarLayers(...layers: Record<string, string>[]): Record<string, string> {
-  return Object.assign({}, ...layers);
+  const merged: Record<string, string> = {};
+  for (const layer of layers) {
+    for (const [key, value] of Object.entries(layer)) {
+      merged[key] = value;
+    }
+  }
+  return merged;
 }
 
 export function findCollectionRoot(file: TFile, vault: Vault): string | null {

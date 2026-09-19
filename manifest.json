@@ -1,11 +1,10 @@
 {
 	"id": "brunet",
 	"name": "Brunet",
-	"version": "0.4.1",
-	"minAppVersion": "0.1.0",
-	"description": "Bruno API format support — view, edit, and run .bru HTTP requests in your vault.",
+	"version": "0.4.2",
+	"minAppVersion": "1.7.2",
+	"description": "Bruno API format support. View, edit, and run .bru HTTP requests in your vault.",
 	"author": "masykurisyaifullah",
 	"authorUrl": "https://github.com/msyaifullah",
-	"fundingUrl": "",
 	"isDesktopOnly": false
 }

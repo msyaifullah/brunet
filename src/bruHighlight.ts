@@ -7,9 +7,7 @@
  * proper token-based highlighting that Obsidian's CM6 instance can use.
  */
 
-import { StreamLanguage, StringStream } from "@codemirror/language";
-import { tags } from "@lezer/highlight";
-import { LanguageSupport } from "@codemirror/language";
+import { StreamLanguage, StringStream, LanguageSupport } from "@codemirror/language";
 
 const HTTP_METHODS = new Set([
   "get", "post", "put", "patch", "delete", "head", "options", "connect", "trace",

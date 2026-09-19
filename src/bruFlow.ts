@@ -197,8 +197,11 @@ function extractConditionValue(
   if (json == null) return "";
   const atPath = getJsonPath(json, condition.jsonPath ?? "");
   if (atPath == null) return "";
-  if (typeof atPath === "object") return JSON.stringify(atPath);
-  return String(atPath);
+  if (typeof atPath === "string") return atPath;
+  if (typeof atPath === "number" || typeof atPath === "boolean") {
+    return String(atPath);
+  }
+  return JSON.stringify(atPath);
 }
 
 function outcomeForStepIndex(

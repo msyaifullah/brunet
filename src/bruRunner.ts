@@ -5,7 +5,7 @@
  */
 
 import { requestUrl } from "obsidian";
-import { BruFile, BruKeyValue, getBruBodyType, isFormBodyType, parseFormBodyContent } from "./bruParser";
+import { BruFile, BruKeyValue, getBruBodyType, parseFormBodyContent } from "./bruParser";
 import { extractBruVars } from "./bruParser";
 import { normalizeBodyType } from "./bruBodyEditor";
 
@@ -14,9 +14,29 @@ export interface BruResponse {
   statusText: string;
   headers: Record<string, string>;
   body: string;
-  json: unknown | null;
+  json: unknown;
   durationMs: number;
   error?: string;
+}
+
+interface HttpErrorShape {
+  status: number;
+  message?: string;
+  headers?: Record<string, string>;
+  text?: string;
+}
+
+function isHttpErrorShape(err: unknown): err is HttpErrorShape {
+  if (typeof err !== "object" || err === null || !("status" in err)) return false;
+  return typeof err.status === "number";
+}
+
+function parseJsonUnknown(text: string): unknown {
+  try {
+    return JSON.parse(text) as unknown;
+  } catch {
+    return null;
+  }
 }
 
 /** Resolved request sent over the wire (after vars, path, and query). */
@@ -38,9 +58,10 @@ export interface BruRunOptions {
 }
 
 export function resolveVars(text: string, vars: Record<string, string>): string {
-  return text.replace(/\{\{([^}]+)\}\}/g, (_match, key) => {
-    const trimmed = key.trim();
-    return trimmed in vars ? vars[trimmed] : `{{${trimmed}}}`;
+  return text.replace(/\{\{([^}]+)\}\}/g, (match, ...groups: unknown[]) => {
+    const raw = groups[0];
+    const key = typeof raw === "string" ? raw.trim() : "";
+    return key in vars ? vars[key] : match;
   });
 }
 
@@ -188,10 +209,9 @@ export async function runBruRequest(
     });
 
     const durationMs = Date.now() - startMs;
-
-    let jsonResult: unknown | null = null;
+    let jsonResult: unknown = null;
     try {
-      jsonResult = resp.json;
+      jsonResult = resp.json as unknown;
     } catch {
       jsonResult = null;
     }
@@ -201,7 +221,7 @@ export async function runBruRequest(
       response: {
         status: resp.status,
         statusText: getStatusText(resp.status),
-        headers: resp.headers as Record<string, string>,
+        headers: resp.headers,
         body: resp.text,
         json: jsonResult,
         durationMs,
@@ -210,34 +230,17 @@ export async function runBruRequest(
   } catch (err: unknown) {
     const durationMs = Date.now() - startMs;
 
-    if (
-      typeof err === "object" &&
-      err !== null &&
-      "status" in err
-    ) {
-      const httpErr = err as { status: number; message?: string; headers?: Record<string, string>; text?: string };
-      const status = httpErr.status;
-
-      let body = "";
-      let jsonResult: unknown | null = null;
-      try {
-        body = httpErr.text ?? "";
-      } catch {
-        body = "";
-      }
-      try {
-        const parsed = JSON.parse(body);
-        jsonResult = parsed;
-      } catch {
-        jsonResult = null;
-      }
+    if (isHttpErrorShape(err)) {
+      const status = err.status;
+      const body = err.text ?? "";
+      const jsonResult = parseJsonUnknown(body);
 
       return {
         request,
         response: {
           status,
           statusText: getStatusText(status),
-          headers: (httpErr.headers as Record<string, string>) ?? {},
+          headers: err.headers ?? {},
           body,
           json: jsonResult,
           durationMs,
