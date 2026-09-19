@@ -43,10 +43,10 @@
 
 Brunet opens automatically with two sidebars:
 
-| Panel | Location | Purpose |
-|---|---|---|
+| Panel                  | Location     | Purpose                                         |
+|------------------------|--------------|-------------------------------------------------|
 | **Brunet Collections** | Left sidebar | Browse and quick-run every request in the vault |
-| Request preview | Main editor | Edit and send the active request |
+| Request preview        | Main editor  | Edit and send the active request                |
 
 > **Tip:** Use the **Environment** tab (or **Settings → Brunet**) to pick a Bruno environment so `{{variables}}` resolve from `environments/*.bru` files.
 
@@ -63,14 +63,14 @@ Every HTTP request opens as a formatted card instead of raw text.
 
 ### Tabs
 
-| Tab | What it does |
-|---|---|
-| **Headers** | Edit request headers (enable/disable rows, add or remove keys) |
-| **Environment** | Select a Bruno environment and edit its variables |
-| **Body** | Edit the request body with syntax highlighting, folding, and prettify for JSON |
-| **Params** | Edit query and path parameters |
-| **Console** | Request snapshot and full response after **Send** |
-| **More** | Scripts, assertions, docs, and other Bruno blocks |
+| Tab             | What it does                                                                   |
+|-----------------|--------------------------------------------------------------------------------|
+| **Headers**     | Edit request headers (enable/disable rows, add or remove keys)                 |
+| **Environment** | Select a Bruno environment and edit its variables                              |
+| **Body**        | Edit the request body with syntax highlighting, folding, and prettify for JSON |
+| **Params**      | Edit query and path parameters                                                 |
+| **Console**     | Request snapshot and full response after **Send**                              |
+| **More**        | Scripts, assertions, docs, and other Bruno blocks                              |
 
 Changes in the preview are written back to the `.bru` / `.yml` file automatically.
 
@@ -106,25 +106,25 @@ Select an environment in the **Environment** tab or under **Settings → Brunet 
 
 ## Supported files
 
-| File | Role |
-|---|---|
-| `*.bru` | Standard Bruno HTTP requests |
-| `*.yml` / `*.yaml` | OpenCollection YAML requests |
-| `bruno.json` | Collection manifest (read-only overview) |
-| `collection.bru`, `folder.bru` | Collection / folder manifests |
-| `environments/*.bru` | Environment variable files (not listed as requests) |
+| File                           | Role                                                |
+|--------------------------------|-----------------------------------------------------|
+| `*.bru`                        | Standard Bruno HTTP requests                        |
+| `*.yml` / `*.yaml`             | OpenCollection YAML requests                        |
+| `bruno.json`                   | Collection manifest (read-only overview)            |
+| `collection.bru`, `folder.bru` | Collection / folder manifests                       |
+| `environments/*.bru`           | Environment variable files (not listed as requests) |
 
 Syntax highlighting is applied when viewing `.bru`, `.yml`, and `.yaml` Bruno files in the editor.
 
 ## Commands
 
-| Command | Action |
-|---|---|
-| `Open Collections panel` | Show the Collections sidebar |
-| `Open Brunet panel` | Show the Brunet right sidebar |
-| `Copy 'bru run' command to clipboard` | Copy CLI command for the active `.bru` file |
-| `Open .bru file in preview mode` | Open the active file in the preview view |
-| `Run Brunet Request` | Show a notice with the `bru run` command (CLI) |
+| Command                               | Action                                         |
+|---------------------------------------|------------------------------------------------|
+| `Open Collections panel`              | Show the Collections sidebar                   |
+| `Open Brunet panel`                   | Show the Brunet right sidebar                  |
+| `Copy 'bru run' command to clipboard` | Copy CLI command for the active `.bru` file    |
+| `Open .bru file in preview mode`      | Open the active file in the preview view       |
+| `Run Brunet Request`                  | Show a notice with the `bru run` command (CLI) |
 
 ## Settings
 
