@@ -122,28 +122,49 @@ npm run version  # bump version in manifest.json and versions.json
 
 ## Releasing
 
-Releases are automated via GitHub Actions. When a version tag is pushed, the workflow builds the plugin and creates a draft GitHub release with `main.js` and `manifest.json` attached.
+Brunet is already listed in the [Obsidian Community directory](https://community.obsidian.md/plugins/brunet). Updates do **not** need a new submission — only a published GitHub release.
 
-**Tag format:** The GitHub release tag must match `manifest.json` `version` exactly (e.g. `0.3.4`, not `v0.3.4`). Obsidian installs assets from the release with that tag. This repo sets `tag-version-prefix=` in `.npmrc` so `npm version` creates the correct tags.
+Releases are automated via GitHub Actions. Pushing a version tag builds the plugin and creates a **draft** GitHub release with `main.js` and `manifest.json` attached.
+
+**Tag format:** The GitHub release tag must match `manifest.json` `version` exactly (e.g. `0.4.1`, not `v0.4.1`). Obsidian installs assets from the release with that tag. This repo sets `tag-version-prefix=` in `.npmrc` so `npm version` creates the correct tags.
 
 ### Steps
 
-1. Bump the version (updates `package.json`, `manifest.json`, and `versions.json`, then commits and tags):
+1. Make sure `main` is up to date and the plugin builds:
    ```bash
-   npm version 0.3.6
-   # creates tag 0.3.6 (no "v" prefix; must match manifest.json version)
+   git checkout main
+   git pull
+   npm run build
    ```
 
-2. Push the commit and tag:
+2. Bump the version (updates `package.json`, `manifest.json`, and `versions.json`, then commits and tags):
    ```bash
-   git push origin main --tags
+   npm version 0.4.2
+   # creates tag 0.4.2 (no "v" prefix; must match manifest.json version)
    ```
 
-3. Go to the **Releases** tab on GitHub, edit the draft, add release notes, and publish.
+3. Push the commit **and** the tag (the tag is what triggers the workflow):
+   ```bash
+   git push origin main
+   git push origin 0.4.2
+   ```
 
-### First-time setup
+4. Wait for **Release Obsidian plugin** to finish: [Actions](https://github.com/msyaifullah/brunet/actions).
 
-Enable write permissions for GitHub Actions: **Settings → Actions → General → Workflow permissions → Read and write permissions**.
+5. Open **Releases**, edit the draft, add notes if needed, and **Publish**.
+   Obsidian will not see the version while it is still a draft.
+
+6. On [community.obsidian.md](https://community.obsidian.md), open Brunet in the developer dashboard:
+   - **⋯ → Check for new releases** to pick up the GitHub release immediately
+   - **Request review** if the automated scan fails
+   The listing usually updates within 24 hours even without this step.
+
+7. Confirm the new version on [Brunet’s community page](https://community.obsidian.md/plugins/brunet) and in Obsidian under **Settings → Community plugins**.
+
+### First-time setup (already done)
+
+- GitHub Actions write permissions: **Settings → Actions → General → Workflow permissions → Read and write permissions**
+- Plugin submitted once via the [Obsidian Community developer dashboard](https://community.obsidian.md) (GitHub connected, repo claimed)
 
 ## License
 
